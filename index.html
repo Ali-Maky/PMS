@@ -761,23 +761,6 @@
             </tr>
         `).join('');
     }
-        
-        tbody.innerHTML = visible.map(r => `
-            <tr>
-                <td style="font-weight:600;">${r[COL.name]}</td>
-                <td>${r[COL.div]||'-'}</td>
-                <td>${r[COL.job]||'-'}</td>
-                <td>${r[COL.mgr]||'-'}</td>
-                <td>
-                    <div style="display:flex; gap:6px;">
-                        <button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem;" onclick="loadEval('${r[COL.id]}')">View</button> 
-                        <button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem; color:var(--danger); border-color:#fee2e2;" onclick="rejectToManager('${r[COL.id]}')">Reject</button>
-                        <button class="btn btn-primary" style="padding:6px 10px; font-size:0.75rem;" onclick="approveSingle('${r[COL.id]}')">Approve</button>
-                    </div>
-                </td>
-            </tr>
-        `).join('');
-    }
 
     async function loadAdminSearch() { 
         if(allCompanyData.length === 0) allCompanyData = await fetchAllData();
@@ -1335,6 +1318,7 @@ async function rejectToManager(id) {
 </script>
 </body>
 </html>
+
 
 
 
