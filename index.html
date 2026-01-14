@@ -672,9 +672,66 @@
     async function loadAdminAnalytics() {
         if(allCompanyData.length === 0) { allCompanyData = await fetchAllData(); }
         const divs = [...new Set(allCompanyData.map(i=>i[COL.div]||'Unknown'))].sort().filter(d=>d!=='Unknown');
-        let h = `<div class="dash-grid" style="grid-template-columns: 1fr; margin-bottom:20px;"><div style="display:flex; justify-content:flex-end; align-items:center; gap:12px;"><label style="font-weight:600; font-size:0.9rem;">Filter by Division:</label><select id="anl-filter" onchange="calcAdminStats()" style="padding:8px 16px; border-radius:8px; border:1px solid var(--border); font-family:inherit;"><option value="ALL">All Company</option>${divs.map(d=>`<option value="${d}">${d}</option>`).join('')}</select></div></div><div class="dash-grid"><div class="card"><h3 style="text-align:center; margin:0 0 20px 0; font-size:1rem;">Rating Distribution (Live)</h3><div style="height:300px;"><canvas id="chartAdmin"></canvas></div></div><div class="card"><h3 style="margin:0 0 20px 0; font-size:1rem;">Manager Completion Tracker</h3><div style="max-height:300px; overflow-y:auto;"><table class="report-table"><thead><tr><th>Manager</th><th>Completed</th><th>Progress</th></tr></thead><tbody id="mgr-tbody"></tbody></table></div></div></div>`;
+        let h = `<div class="dash-grid" style="grid-template-columns: 1fr; margin-bottom:20px;">
+            <div style="display:flex; justify-content:flex-end; align-items:center; gap:12px;">
+                <button class="btn btn-outline" onclick="downloadAdminReport()"><i class="fa-solid fa-file-excel"></i> &nbsp; Export Report</button>
+                <div style="width:1px; height:24px; background:var(--border); margin:0 8px;"></div>
+                <label style="font-weight:600; font-size:0.9rem;">Filter by Division:</label>
+                <select id="anl-filter" onchange="calcAdminStats()" style="padding:8px 16px; border-radius:8px; border:1px solid var(--border); font-family:inherit;">
+                    <option value="ALL">All Company</option>
+                    ${divs.map(d=>`<option value="${d}">${d}</option>`).join('')}
+                </select>
+            </div>
+        </div>
+        <div class="dash-grid"><div class="card"><h3 style="text-align:center; margin:0 0 20px 0; font-size:1rem;">Rating Distribution (Live)</h3><div style="height:300px;"><canvas id="chartAdmin"></canvas></div></div><div class="card"><h3 style="margin:0 0 20px 0; font-size:1rem;">Manager Completion Tracker</h3><div style="max-height:300px; overflow-y:auto;"><table class="report-table"><thead><tr><th>Manager</th><th>Completed</th><th>Progress</th></tr></thead><tbody id="mgr-tbody"></tbody></table></div></div></div>`;
         document.getElementById('admin-content').innerHTML = h;
         calcAdminStats();
+    }
+    
+    function downloadAdminReport() {
+        const filter = document.getElementById('anl-filter').value;
+        const subset = (filter === 'ALL') ? allCompanyData : allCompanyData.filter(u => (u[COL.div]||'Unknown') === filter);
+        
+        if(subset.length === 0) { alert("No data to export."); return; }
+
+        const globalRating = masterData.rating || 0;
+        
+        const rows = subset.map(u => {
+            let userGoals = u[COL.goals];
+            if(typeof userGoals==='string') { try{userGoals=JSON.parse(userGoals); if(typeof userGoals==='string')userGoals=JSON.parse(userGoals);}catch(e){userGoals=[]} }
+            if(!Array.isArray(userGoals)) userGoals=[];
+            
+            let w = getW(u[COL.lvl], u[COL.job]);
+            let sScore = globalRating * (w.s/100);
+            let iScore = 0; 
+            userGoals.forEach(g=>(iScore+=(g.rating||0)*(g.weight||0)));
+            
+            let total = sScore + (iScore * (w.i/100));
+            
+            let lbl = "-";
+            if(total>=5.5) lbl="ASTRONAUT"; 
+            else if(total>=4.5) lbl="FLYER"; 
+            else if(total>=3.5) lbl="RUNNER"; 
+            else if(total>=2.5) lbl="WALKER"; 
+            else if(total>=1.5) lbl="STAGNANT"; 
+            else if(total>0) lbl="IDLE";
+
+            return {
+                "Employee ID": u[COL.id],
+                "Name": u[COL.name],
+                "Division": u[COL.div] || "-",
+                "Department": u[COL.dept] || "-",
+                "Supervisor": u[COL.mgr] || "-",
+                "Status": u[COL.stat] || "Draft",
+                "Total Score": total.toFixed(2),
+                "Rating": lbl
+            };
+        });
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Evaluation Report");
+        XLSX.writeFile(wb, `Zain_PMS_Report_${filter}_${new Date().toISOString().slice(0,10)}.xlsx`);
     }
 
     function calcAdminStats() {
