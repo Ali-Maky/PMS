@@ -93,9 +93,9 @@
         .goal-body { padding: 24px; }
         .goal-desc { width: 100%; border: 1px solid var(--border); padding: 16px; border-radius: 12px; margin-bottom: 20px; font-family: inherit; font-size: 0.9rem; background: #fcfcfc; resize: none; }
         .target-table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; font-size: 0.85rem; }
-        .target-table th { background: #f8fafc; padding: 12px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); color: var(--text-muted); font-weight: 700; text-transform: uppercase; text-align: center; }
+        .target-table th { background: #f8fafc; padding: 12px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); color: var(--text-muted); font-weight: 700; text-transform: uppercase; text-align: center; font-size:0.65rem; }
         .target-table td { border-right: 1px solid var(--border); padding: 0; background: white; }
-        .target-input { width: 100%; border: none; padding: 14px; text-align: center; font-weight: 500; background: transparent; }
+        .target-input { width: 100%; border: none; padding: 14px; text-align: center; font-weight: 500; background: transparent; font-size: 0.85rem; }
         .runner-col { background: #eff6ff !important; color: #1d4ed8; font-weight: 800; border-bottom: 3px solid #3b82f6 !important; }
 
         .report-table { width: 100%; border-collapse: separate; border-spacing: 0 8px; font-size: 0.9rem; margin-top: -8px; }
@@ -1253,7 +1253,7 @@
                 <div class="goal-body">
                     <textarea class="goal-desc" rows="2" placeholder="Describe..." onchange="updG(${i},'desc',this.value)" ${edit?'':'readonly'}>${g.desc||''}</textarea>
                     <table class="target-table">
-                        <thead><tr><th>1</th><th>2</th><th>3</th><th class="runner-col">4</th><th>5</th><th>6</th></tr></thead>
+                        <thead><tr><th>IDLE</th><th>STAGNANT</th><th>WALKER</th><th class="runner-col">RUNNER (Target)</th><th>FLYER</th><th>ASTRONAUT</th></tr></thead>
                         <tbody><tr>${(g.targets||Array(6).fill('')).map((t,ti)=>`<td><input class="target-input" value="${t}" onchange="updT(${i},${ti},this.value)" ${edit?'':'readonly'}></td>`).join('')}</tr></tbody>
                     </table>
                 </div>
