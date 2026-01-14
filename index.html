@@ -573,22 +573,22 @@
         renderMasterGoals();
     }
 
-    async function saveMasterGoals() {
+ async function saveMasterGoals() {
         if(!confirm("Publish Global Rating & Goals to ALL employees?")) return;
         showSaving();
         
-        // OLD WAY (Insecure):
-        // const { error } = await db.from('company_settings').upsert(...);
+        // Ensure we are sending the correct ID
+        const myId = user[COL.id] || user['id'] || user['Employee Number'];
 
-        // NEW WAY (Secure RPC Call):
         const { error } = await db.rpc('publish_goals', {
-            operator_id: user[COL.id], // Send the logged-in ID to the DB to verify
-            new_goals: masterData      // Send the data
+            operator_id: myId, 
+            new_goals: masterData      
         });
 
         if(error) {
-            console.error(error);
-            alert("⛔ Security Alert: " + error.message);
+            console.error("Publish Error:", error);
+            // Show the exact error message from the database
+            alert("⛔ Database Error: " + error.message);
             document.getElementById('save-status').classList.remove('show');
         } else { 
             // Cleanup the draft after successful publish
@@ -599,7 +599,6 @@
             alert("✅ Published Successfully!"); 
         }
     }
-
     // --- ADMIN PERMISSIONS ---
     async function loadAdminPerms() {
         const { data: admins } = await db.from('active_list').select('*').eq(COL.role, 'admin');
@@ -1288,4 +1287,5 @@
     }
 </script>
 </body>
+
 </html>
