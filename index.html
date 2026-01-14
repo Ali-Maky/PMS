@@ -1037,33 +1037,29 @@ async function loadEval(tid, isSearchMode = false) {
             // 1. Fetch Data
             const { data, error } = await db.from('active_list').select('*').eq(COL.id, tid).single();
             
-            // 2. Error Handling (Fixes "Click does nothing" issue)
+            // 2. Error Check
             if (error || !data) {
                 console.error("Load Error:", error);
-                alert("❌ Could not load employee data.\n\nPossible reasons:\n1. The Employee ID '" + tid + "' might be incorrect.\n2. The row might have been deleted.\n3. Database connection issue.");
+                alert("❌ Could not load employee data. Please refresh and try again.");
                 return;
             }
 
-            // 3. Setup User Context
+            // 3. Setup Context
             targetUser = data;
             const uRole = getRole(user); 
             
-            // Fix: Clean ID Comparison
             const myId = (user[COL.id] || '').toString();
             const targetId = (targetUser[COL.id] || '').toString();
             const viewingSelf = (myId === targetId);
             
-            // Fix: Manager Check logic
             const mgrStr = (data[COL.mgr] || "").toString().toLowerCase();
             const myName = (user[COL.name] || "").toString().toLowerCase();
             
             isDirectSupervisor = (mgrStr.includes(myId.toLowerCase()) || (myName.length > 3 && mgrStr.includes(myName)));
             isManager = isDirectSupervisor || (uRole === 'Admin' && !viewingSelf) || (uRole === 'Master' && !viewingSelf); 
 
-            // 4. Weight Calculation
+            // 4. Weight & Goals
             const w = getW(data[COL.lvl], data[COL.job]);
-
-            // 5. Goals Initialization
             let userGoals = targetUser[COL.goals];
             if (typeof userGoals === 'string') { try { userGoals = JSON.parse(userGoals); } catch (e) { userGoals = []; } }
             if (!userGoals || !Array.isArray(userGoals) || userGoals.length === 0) {
@@ -1073,7 +1069,7 @@ async function loadEval(tid, isSearchMode = false) {
             
             const stat = data[COL.stat] || 'Draft';
 
-            // 6. Permissions Logic
+            // 5. Permissions
             let canEdit = false;
             if (viewingSelf) {
                 canEdit = (stat === 'Draft' || stat === 'Returned'); 
@@ -1085,13 +1081,16 @@ async function loadEval(tid, isSearchMode = false) {
             }
             if (isSearchMode) canEdit = false;
 
-            // 7. Render Scorecard View
+            // 6. Start Rendering HTML
             let mName = data[COL.mgr]||'-'; if(mName.includes('(')) mName=mName.split('(')[0];
             const showScoreToViewer = (stat === 'Approved') || (isManager && !viewingSelf) || (['Admin','Master'].includes(uRole) && !viewingSelf);
 
             let h = `
                 <div class="header-bar">
-                    <div><h2 class="page-title">${isManager ? 'Evaluation' : 'My Scorecard'}</h2><p class="page-sub">${data[COL.name].split('(')[0]} &bull; <span style="color:var(--primary); font-weight:600;">${stat}</span>${isSearchMode ? ' <span class="draft-badge">Read-Only</span>' : ''}</p></div>
+                    <div>
+                        <h2 class="page-title">${isManager ? 'Evaluation' : 'My Scorecard'}</h2>
+                        <p class="page-sub">${data[COL.name].split('(')[0]} &bull; <span style="color:var(--primary); font-weight:600;">${stat}</span>${isSearchMode ? ' <span class="draft-badge">Read-Only</span>' : ''}</p>
+                    </div>
                     ${isManager ? `<button onclick="${['Admin','Master'].includes(uRole) ?'loadHRAdmin()':'loadTeam()'}" class="btn btn-outline"><i class="fa-solid fa-arrow-left"></i> &nbsp; Back</button>` : ''}
                 </div>
                 
@@ -1109,10 +1108,14 @@ async function loadEval(tid, isSearchMode = false) {
                 </div>
 
                 <div class="info-panel">
-                    <div class="info-item"><label>Name</label><div class="info-value">${data[COL.name]}</div></div><div class="info-item"><label>ID</label><div class="info-value">${data[COL.id]}</div></div><div class="info-item"><label>Job</label><div class="info-value">${data[COL.job]||'-'}</div></div><div class="info-item"><label>Division</label><div class="info-value">${data[COL.div]||'-'}</div></div><div class="info-item"><label>Manager</label><div class="info-value">${mName}</div></div>
+                    <div class="info-item"><label>Name</label><div class="info-value">${data[COL.name]}</div></div>
+                    <div class="info-item"><label>ID</label><div class="info-value">${data[COL.id]}</div></div>
+                    <div class="info-item"><label>Job</label><div class="info-value">${data[COL.job]||'-'}</div></div>
+                    <div class="info-item"><label>Division</label><div class="info-value">${data[COL.div]||'-'}</div></div>
+                    <div class="info-item"><label>Manager</label><div class="info-value">${mName}</div></div>
                 </div>`;
 
-            // Blocked View for Managers (Before Submission)
+            // 7. Check if Manager is blocked (Draft Stage)
             const managerBlocked = (isDirectSupervisor && (stat === 'Draft' || stat === 'Returned'));
             
             if (managerBlocked && !['Admin','Master'].includes(uRole)) {
@@ -1120,16 +1123,14 @@ async function loadEval(tid, isSearchMode = false) {
                 <div class="card" style="text-align:center; padding:60px;">
                     <div style="font-size:3rem; color:#cbd5e1; margin-bottom:20px;"><i class="fa-solid fa-hourglass-start"></i></div>
                     <h3 style="color:var(--text-muted);">Waiting for Submission</h3>
-                    <p style="color:#94a3b8;">The employee has not submitted their scorecard yet.<br>It will appear here once they click "Submit to Manager".</p>
+                    <p style="color:#94a3b8;">The employee has not submitted their scorecard yet.</p>
                 </div>`;
             } else {
                 // Shared Goals
                 if (w.s > 0) {
                     h += `
                     <div class="animate-in" style="margin-bottom:40px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                            <h3 style="margin:0; color:var(--primary); font-weight:800; font-size:1.2rem;">Shared Goals (${w.s}%)</h3>
-                        </div>
+                        <h3 style="margin:0 0 20px 0; color:var(--primary); font-weight:800; font-size:1.2rem;">Shared Goals (${w.s}%)</h3>
                         <div class="shared-grid">
                             ${(masterData.goals || []).map(g=>`
                                 <div class="shared-card">
@@ -1145,7 +1146,7 @@ async function loadEval(tid, isSearchMode = false) {
                     </div>`;
                 }
 
-                // Individual Goals
+                // Individual Goals Container
                 if (w.i > 0) {
                     h += `
                     <div class="animate-in">
@@ -1158,9 +1159,10 @@ async function loadEval(tid, isSearchMode = false) {
                 }
             }
 
-            // Button Toolbar
+            // 8. Bottom Action Bar
             h += `<div style="margin-top:40px; padding-top:20px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:15px;">`;
 
+            // Employee / Manager Editing Actions
             if (canEdit) {
                 h += `<button class="btn btn-outline" onclick="saveDraft()"><i class="fa-regular fa-floppy-disk"></i> Save Draft</button>`;
                 let btnText = "Submit";
@@ -1169,31 +1171,27 @@ async function loadEval(tid, isSearchMode = false) {
                 h += `<button class="btn btn-primary" onclick="submitFinal()"><i class="fa-solid fa-paper-plane"></i> ${btnText}</button>`;
             } 
             
-            // Reject Button (Manager View)
+            // Manager Reject Action
             if (isDirectSupervisor && stat === 'Submitted to Manager') {
                  h += `<button class="btn btn-outline" style="color:var(--danger); border-color:#fee2e2; background:#fff1f2;" onclick="rejectCard()"><i class="fa-solid fa-ban"></i> Reject / Request Changes</button>`;
             }
 
-            // HR ADMIN ACTIONS (Inside View)
+            // HR Admin Actions
             if ((uRole === 'Admin' || uRole === 'Master') && stat === 'Submitted to HR') {
-                 h += `<button class="btn btn-outline" style="color:var(--danger); border-color:#fee2e2; background:#fff1f2;" onclick="rejectToManager('${targetUser[COL.id]}')">
-                    <i class="fa-solid fa-rotate-left"></i> Reject to Manager
-                 </button>`;
-                 
-                 h += `<button class="btn btn-primary" onclick="submitFinal()">
-                    <i class="fa-solid fa-check"></i> Final Approve (HR)
-                 </button>`;
+                 h += `<button class="btn btn-outline" style="color:var(--danger); border-color:#fee2e2; background:#fff1f2;" onclick="rejectToManager('${targetUser[COL.id]}')"><i class="fa-solid fa-rotate-left"></i> Reject to Manager</button>`;
+                 h += `<button class="btn btn-primary" onclick="submitFinal()"><i class="fa-solid fa-check"></i> Final Approve (HR)</button>`;
             }
             
-            h += `</div>`;
+            h += `</div>`; // Close Action Bar
 
+            // 9. Final Render
             render(h);
             if (w.i > 0 && !managerBlocked) renderGoals(canEdit);
             calc();
 
         } catch (err) {
             console.error(err);
-            alert("Unexpected error loading scorecard: " + err.message);
+            alert("Unexpected error: " + err.message);
         }
     }
 async function rejectToManager(id) {
@@ -1337,6 +1335,7 @@ async function rejectToManager(id) {
 </script>
 </body>
 </html>
+
 
 
 
