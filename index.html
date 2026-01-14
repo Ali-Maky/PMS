@@ -581,7 +581,7 @@
         const myId = user[COL.id] || user['id'] || user['Employee Number'];
 
         // 2. Send Data to Database (Secure RPC)
-        console.log("Sending Payload:", masterData); // Debug log
+        console.log("Sending Payload:", masterData); 
         const { error } = await db.rpc('publish_goals', {
             operator_id: myId, 
             new_goals: masterData      
@@ -592,7 +592,7 @@
             alert("⛔ Database Error: " + error.message);
             document.getElementById('save-status').classList.remove('show');
         } else { 
-            // 3. Wait 1 second (1000ms) to ensure DB write is complete
+            // 3. Wait 1 second to ensure DB write is complete
             await new Promise(r => setTimeout(r, 1000));
 
             // 4. Verify & Cleanup
@@ -605,7 +605,6 @@
                 masterData = verifyData.data; 
                 renderMasterGoals();          
                 
-                // Force update the dropdown to match the saved value
                 const rateSelect = document.querySelector('select[onchange="updateMasterRating(this.value)"]');
                 if(rateSelect) rateSelect.value = masterData.rating;
             }
@@ -614,6 +613,7 @@
             alert("✅ Published Successfully!"); 
         }
     }
+
     // --- ADMIN PERMISSIONS ---
     async function loadAdminPerms() {
         const { data: admins } = await db.from('active_list').select('*').eq(COL.role, 'admin');
@@ -857,24 +857,19 @@
             let total = sScore + (iScore * (w.i/100));
             let b=0, lbl="IDLE"; if(total>=5.5) {b=5; lbl="ASTRONAUT";} else if(total>=4.5) {b=4; lbl="FLYER";} else if(total>=3.5) {b=3; lbl="RUNNER";} else if(total>=2.5) {b=2; lbl="WALKER";} else if(total>=1.5) {b=1; lbl="STAGNANT";}
             
-            // SHOW SCORE IF SUBMITTED OR APPROVED
-            const showScore = (u[COL.stat] === 'Submitted to Manager' || u[COL.stat] === 'Submitted to HR' || u[COL.stat] === 'Approved');
+            // SHOW SCORE ALWAYS TO MANAGER (Requirement: Calculate even draft ratings)
+            const showScore = true; 
             
             return { 
                 name: u[COL.name], 
-                score: showScore ? total.toFixed(2) : '<i class="fa-solid fa-lock"></i>', 
-                bucket: showScore ? b : -1, 
-                label: showScore ? lbl : 'Pending', 
+                score: total.toFixed(2), // Always show score
+                bucket: b, 
+                label: lbl, 
                 status: u[COL.stat]||'Draft' 
             };
         });
         
-        // Sort so locks are at bottom
-        scoredReports.sort((a,b) => {
-            if(a.score.includes('<i')) return 1;
-            if(b.score.includes('<i')) return -1;
-            return b.score - a.score;
-        });
+        scoredReports.sort((a,b) => b.score - a.score);
         
         let tableRows = scoredReports.map(r => `<tr><td style="font-weight:600;">${r.name}</td><td style="font-weight:700; text-align:center;">${r.score}</td><td style="text-align:center;"><span style="font-size:0.75rem; font-weight:700; padding:4px 10px; border-radius:12px; background:${r.bucket>=4?'var(--success)':(r.bucket>=2?'var(--primary)':(r.bucket>=0?'var(--danger)':'#cbd5e1'))}; color:white;">${r.label}</span></td><td style="text-align:right;">${r.status}</td></tr>`).join('');
 
@@ -1016,32 +1011,28 @@
         const stat = data[COL.stat] || 'Draft';
 
         // --- 1. EDIT RIGHTS LOGIC ---
-        // Employee: Can only edit if Draft. Locked if Submitted.
-        // Manager: Can only edit (rate) if 'Submitted to Manager'. Locked if Draft or Approved.
         let canEdit = false;
         if (viewingSelf) {
-            canEdit = (stat === 'Draft' || stat === 'Returned'); // Employee can edit only in these states
+            canEdit = (stat === 'Draft' || stat === 'Returned'); 
         } else if (isManager) {
-            canEdit = (stat === 'Submitted to Manager'); // Manager can only edit when submitted to them
+            canEdit = (stat === 'Submitted to Manager'); 
         }
         
-        // God Mode (Admin/Master can always edit unless strictly viewing self as user)
         if ((uRole === 'Admin' || uRole === 'Master') && !viewingSelf) {
             canEdit = true; 
         }
         if (isSearchMode) canEdit = false;
 
-        // --- 2. MANAGER VISIBILITY LOGIC (Requirement: Empty until submitted) ---
-        // If I am the manager, and the status is Draft, I should NOT see the content yet.
+        // --- 2. MANAGER VISIBILITY LOGIC ---
         const managerBlocked = (isDirectSupervisor && (stat === 'Draft' || stat === 'Returned'));
 
-        // --- 3. SCORE VISIBILITY LOGIC (Requirement: Hidden until HR Approved) ---
-        // Logic: 
-        // - Employee: sees ONLY if Approved.
-        // - Manager/Admin: sees if Approved OR if Submitted (so they can rate).
+        // --- 3. SCORE VISIBILITY LOGIC ---
+        // Requirement: Manager sees draft scores. Employee only sees Approved.
         const showScoreToViewer = (stat === 'Approved') || (isManager && !viewingSelf) || (['Admin','Master'].includes(uRole) && !viewingSelf);
 
         let mName = data[COL.mgr]||'-'; if(mName.includes('(')) mName=mName.split('(')[0];
+        
+        // GLOBAL RATING (Used for calculation, but hidden from visual grid)
         const globalRating = masterData.rating || 0;
 
         let h = `
@@ -1067,7 +1058,6 @@
                 <div class="info-item"><label>Name</label><div class="info-value">${data[COL.name]}</div></div><div class="info-item"><label>ID</label><div class="info-value">${data[COL.id]}</div></div><div class="info-item"><label>Job</label><div class="info-value">${data[COL.job]||'-'}</div></div><div class="info-item"><label>Division</label><div class="info-value">${data[COL.div]||'-'}</div></div><div class="info-item"><label>Manager</label><div class="info-value">${mName}</div></div>
             </div>`;
 
-        // BLOCKER FOR MANAGER IF DRAFT
         if (managerBlocked && !['Admin','Master'].includes(uRole)) {
             h += `
             <div class="card" style="text-align:center; padding:60px;">
@@ -1076,7 +1066,7 @@
                 <p style="color:#94a3b8;">The employee has not submitted their scorecard yet.<br>It will appear here once they click "Submit to Manager".</p>
             </div>`;
         } else {
-            // SHOW CONTENT
+            // --- SHARED GOALS RENDERING ---
             if (w.s > 0) {
                 h += `
                 <div class="animate-in" style="margin-bottom:40px;">
@@ -1141,7 +1131,30 @@
     }
 
     function renderGoals(edit) {
-        document.getElementById('goal-list').innerHTML = targetUser[COL.goals].map((g,i) => `
+        // Prepare context for the loop
+        const stat = targetUser[COL.stat] || 'Draft';
+        const viewingSelf = (user[COL.id] === targetUser[COL.id]);
+        const uRole = getRole(user);
+        
+        document.getElementById('goal-list').innerHTML = targetUser[COL.goals].map((g,i) => {
+            
+            // Logic for RATING VISIBILITY inside the goal card
+            let ratingDisplay = `<span style="font-weight:700; color:var(--primary); background:var(--primary-soft); padding:4px 10px; border-radius:12px;">Pending</span>`;
+            
+            // 1. Manager/Admin Mode: Always see the rating (dropdown if editing, badge if viewing)
+            if (isDirectSupervisor && edit) {
+                ratingDisplay = `<select onchange="updG(${i},'rating',this.value)" style="padding:6px; border-radius:8px;"><option value="0">Select...</option>${[1,2,3,4,5,6].map(n=>`<option value="${n}" ${g.rating==n?'selected':''}>${n} - ${ratingLabels[n]}</option>`).join('')}</select>`;
+            } else if (!viewingSelf && (isManager || ['Admin','Master'].includes(uRole))) {
+                // Manager viewing (read-only): See actual rating
+                ratingDisplay = `<span style="font-weight:700; color:var(--primary); background:var(--primary-soft); padding:4px 10px; border-radius:12px;">${g.rating ? ratingLabels[g.rating] : 'Pending'}</span>`;
+            } 
+            // 2. Employee Mode: Only see rating if Approved
+            else if (viewingSelf && stat === 'Approved') {
+                ratingDisplay = `<span style="font-weight:700; color:var(--primary); background:var(--primary-soft); padding:4px 10px; border-radius:12px;">${g.rating ? ratingLabels[g.rating] : 'Pending'}</span>`;
+            }
+            // Else default is "Pending" (masked)
+
+            return `
             <div class="goal-card animate-in">
                 <div class="goal-header-row">
                     <input value="${g.title}" class="goal-input-title" onchange="updG(${i},'title',this.value)" ${edit?'':'readonly'} placeholder="Enter Goal Title...">
@@ -1159,9 +1172,10 @@
                 </div>
                 <div style="background:#f8fafc; border-top:1px solid var(--border); padding:12px 24px; display:flex; justify-content:flex-end; align-items:center; gap:12px;">
                     <span style="font-size:0.75rem; font-weight:700; color:var(--primary); text-transform:uppercase;">Rating</span>
-                    ${(isDirectSupervisor && edit) ? `<select onchange="updG(${i},'rating',this.value)" style="padding:6px; border-radius:8px;"><option value="0">Select...</option>${[1,2,3,4,5,6].map(n=>`<option value="${n}" ${g.rating==n?'selected':''}>${n} - ${ratingLabels[n]}</option>`).join('')}</select>` : `<span style="font-weight:700; color:var(--primary); background:var(--primary-soft); padding:4px 10px; border-radius:12px;">${g.rating?ratingLabels[g.rating]:'Pending'}</span>`}
+                    ${ratingDisplay}
                 </div>
-            </div>`).join('');
+            </div>`;
+        }).join('');
     }
 
     function updG(i,f,v) { if(f==='rating') v = parseInt(v); targetUser[COL.goals][i][f]=v; calc(); autoSave(); }
@@ -1303,4 +1317,3 @@
 </script>
 </body>
 </html>
-
