@@ -1138,28 +1138,43 @@
         calc();
     }
 
-    function renderGoals(edit) {
+  function renderGoals(edit) {
         const stat = targetUser[COL.stat] || 'Draft';
         const viewingSelf = (user[COL.id] === targetUser[COL.id]);
         const uRole = getRole(user);
         
         document.getElementById('goal-list').innerHTML = targetUser[COL.goals].map((g,i) => {
             
-            // Logic for RATING VISIBILITY inside the goal card
-            let ratingDisplay = `<span style="font-weight:700; color:var(--primary); background:var(--primary-soft); padding:4px 10px; border-radius:12px;">Pending</span>`;
+            // --- LOGIC FOR RATING VISIBILITY ---
             
-            // 1. Manager/Admin Mode: Always see the rating (dropdown if editing, badge if viewing)
+            // 1. Default State: HIDDEN (Pending HR)
+            // This is what the employee sees while status is Draft, Submitted to Manager, or Submitted to HR
+            let ratingDisplay = `<span style="font-weight:700; color:var(--text-muted); background:#f1f5f9; padding:6px 12px; border-radius:12px; display:inline-flex; align-items:center; gap:6px;">
+                <i class="fa-solid fa-lock" style="font-size:0.8rem;"></i> Pending HR
+            </span>`;
+            
+            // 2. Manager/Admin Editing: Show Dropdown (To Input Score)
             if (isDirectSupervisor && edit) {
-                ratingDisplay = `<select onchange="updG(${i},'rating',this.value)" style="padding:6px; border-radius:8px;"><option value="0">Select...</option>${[1,2,3,4,5,6].map(n=>`<option value="${n}" ${g.rating==n?'selected':''}>${n} - ${ratingLabels[n]}</option>`).join('')}</select>`;
-            } else if (!viewingSelf && (isManager || ['Admin','Master'].includes(uRole))) {
-                // Manager viewing (read-only): See actual rating
-                ratingDisplay = `<span style="font-weight:700; color:var(--primary); background:var(--primary-soft); padding:4px 10px; border-radius:12px;">${g.rating ? ratingLabels[g.rating] : 'Pending'}</span>`;
+                ratingDisplay = `<select onchange="updG(${i},'rating',this.value)" style="padding:8px; border-radius:8px; border:1px solid var(--primary); color:var(--primary); font-weight:700; cursor:pointer;">
+                    <option value="0">Select Rating...</option>
+                    ${[1,2,3,4,5,6].map(n=>`<option value="${n}" ${g.rating==n?'selected':''}>${n} - ${ratingLabels[n]}</option>`).join('')}
+                </select>`;
             } 
-            // 2. Employee Mode: Only see rating if Approved
+            // 3. Manager/Admin Viewing (Read Only): Show Actual Score
+            // Even if not approved yet, managers need to see what they rated.
+            else if (!viewingSelf && (isManager || ['Admin','Master'].includes(uRole))) {
+                ratingDisplay = `<span style="font-weight:700; color:var(--primary); background:var(--primary-soft); padding:6px 12px; border-radius:12px;">
+                    ${g.rating ? g.rating + ' - ' + ratingLabels[g.rating] : 'Not Rated'}
+                </span>`;
+            } 
+            // 4. Employee Viewing Self: Show ONLY if "Approved"
             else if (viewingSelf && stat === 'Approved') {
-                ratingDisplay = `<span style="font-weight:700; color:var(--primary); background:var(--primary-soft); padding:4px 10px; border-radius:12px;">${g.rating ? ratingLabels[g.rating] : 'Pending'}</span>`;
+                ratingDisplay = `<span style="font-weight:700; color:var(--primary); background:var(--primary-soft); padding:6px 12px; border-radius:12px;">
+                    ${g.rating ? g.rating + ' - ' + ratingLabels[g.rating] : 'Not Rated'}
+                </span>`;
             }
 
+            // --- RENDER CARD ---
             return `
             <div class="goal-card animate-in">
                 <div class="goal-header-row">
@@ -1177,7 +1192,7 @@
                     </table>
                 </div>
                 <div style="background:#f8fafc; border-top:1px solid var(--border); padding:12px 24px; display:flex; justify-content:flex-end; align-items:center; gap:12px;">
-                    <span style="font-size:0.75rem; font-weight:700; color:var(--primary); text-transform:uppercase;">Rating</span>
+                    <span style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Rating</span>
                     ${ratingDisplay}
                 </div>
             </div>`;
@@ -1324,4 +1339,5 @@
 </script>
 </body>
 </html>
+
 
