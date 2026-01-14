@@ -573,16 +573,14 @@
         renderMasterGoals();
     }
 
-   async function saveMasterGoals() {
+    async function saveMasterGoals() {
         if(!confirm("Publish Global Rating & Goals to ALL employees?")) return;
         showSaving();
         
-        // 1. Clean the ID
         let myId = user[COL.id] || user['id'] || user['Employee Number'];
         if(myId) myId = myId.toString().trim();
 
-        // --- THE FIX: Direct Upsert to Company Settings ---
-        // This ensures the rating and goals are saved to the "Live" row (shared_goals_v1)
+        // Direct Upsert to Company Settings
         const { error: settingsError } = await db.from('company_settings')
             .upsert({ id: SHARED_GOALS_ID, data: masterData });
 
@@ -593,8 +591,6 @@
             return;
         }
 
-        // 2. OPTIONAL: Trigger the RPC for employee history (if you have it set up)
-        // We wrap this in a try/catch so it doesn't break the save if the RPC is missing
         try {
             await db.rpc('publish_goals', {
                 operator_id: myId,
@@ -604,21 +600,14 @@
             console.warn("RPC execution skipped or failed (Data was still saved to settings).");
         }
 
-        // 3. Wait to ensure DB consistency
         await new Promise(r => setTimeout(r, 1000));
-
-        // 4. Cleanup the Draft
         await db.from('company_settings').delete().eq('id', 'shared_goals_draft');
         hasDraft = false;
 
-        // 5. Force Re-fetch to confirm and update UI
         const { data: verifyData } = await db.from('company_settings').select('data').eq('id', SHARED_GOALS_ID).single();
-        
         if (verifyData && verifyData.data) {
             masterData = verifyData.data; 
             renderMasterGoals();          
-            
-            // Explicitly update the dropdown value to match the saved data
             const rateSelect = document.querySelector('select[onchange="updateMasterRating(this.value)"]');
             if(rateSelect) rateSelect.value = masterData.rating;
         }
@@ -626,6 +615,7 @@
         showSaved(); 
         alert("✅ Saved & Published Permanently!"); 
     }
+
     // --- ADMIN PERMISSIONS ---
     async function loadAdminPerms() {
         const { data: admins } = await db.from('active_list').select('*').eq(COL.role, 'admin');
@@ -735,7 +725,7 @@
         filterAdminTable();
     }
 
-  function filterAdminTable() {
+    function filterAdminTable() {
         const f = document.getElementById('div-filter').value;
         const tbody = document.getElementById('admin-tbody');
         const visible = adminCache.filter(r => f === 'ALL' || (r[COL.div]||'Other') === f);
@@ -791,7 +781,6 @@
             if(visited.has(currentId)) continue;
             visited.add(currentId);
             
-            // Safe match: Ensure we match clean IDs from the manager column string
             let direct = allData.filter(u => {
                 const rawMgr = (u[COL.mgr] || "").toString().toLowerCase();
                 return rawMgr.includes(currentId);
@@ -816,8 +805,6 @@
 
         globalReports = getDownstream(user[COL.id], allCompanyData);
         
-        // --- EXCLUSION LOGIC (Divisional Silo) ---
-        // If logged in as CCO/Commercial Chief, REMOVE any Security employees from the downstream data
         const myJob = (user[COL.job] || "").toUpperCase();
         if (myJob.includes('COMMERCIAL') || myJob.includes('CCO')) {
              globalReports = globalReports.filter(u => !((u[COL.div]||"").toUpperCase().includes('SECURITY')));
@@ -845,17 +832,13 @@
         const distDirect = calcDist(directReports);
         let distOrg = showOrgChart ? calcDist(globalReports) : null;
 
-        // --- FILTER PREPARATION ---
         let filterHtml = "";
         if (showOrgChart) {
              const uniqueDivs = [...new Set(globalReports.map(u => (u[COL.div]||"").trim()).filter(Boolean))].sort();
              
-             // Extract Clean Manager IDs from the tree
              const mgrMap = new Map();
              globalReports.forEach(u => {
                  let rawM = (u[COL.mgr] || "").toString();
-                 // Try to find the actual ID from the string (e.g. "ZIQ123 (Name)" -> "ZIQ123")
-                 // We do this by checking against known employee IDs in our full list
                  let match = allCompanyData.find(x => rawM.includes(x[COL.id]));
                  if(match) {
                      if(!mgrMap.has(match[COL.id])) mgrMap.set(match[COL.id], match[COL.name]);
@@ -888,12 +871,9 @@
             let total = sScore + (iScore * (w.i/100));
             let b=0, lbl="IDLE"; if(total>=5.5) {b=5; lbl="ASTRONAUT";} else if(total>=4.5) {b=4; lbl="FLYER";} else if(total>=3.5) {b=3; lbl="RUNNER";} else if(total>=2.5) {b=2; lbl="WALKER";} else if(total>=1.5) {b=1; lbl="STAGNANT";}
             
-            // SHOW SCORE ALWAYS TO MANAGER (Requirement: Calculate even draft ratings)
-            const showScore = true; 
-            
             return { 
                 name: u[COL.name], 
-                score: total.toFixed(2), // Always show score
+                score: total.toFixed(2), 
                 bucket: b, 
                 label: lbl, 
                 status: u[COL.stat]||'Draft' 
@@ -945,29 +925,21 @@
         
         let filteredData = globalReports;
 
-        // 1. Filter by Manager (Downstream from that specific manager)
         if (mgrFilter !== "ALL") {
-            // Get the subtree for the selected manager
             const subTree = getDownstream(mgrFilter, allCompanyData);
-            
-            // SECURITY CHECK: Ensure we only show people who were ALREADY in the logged-in user's scope.
-            // This prevents a manager from seeing data they shouldn't if they select a peer's ID somehow.
             const globalIds = new Set(globalReports.map(x => x[COL.id]));
             filteredData = subTree.filter(x => globalIds.has(x[COL.id]));
         }
 
-        // 2. STRICT DIVISION FILTER
         if (divFilter !== "ALL") {
             filteredData = filteredData.filter(u => {
-                const userDiv = (u[COL.div] || "").trim(); // Remove whitespace
+                const userDiv = (u[COL.div] || "").trim();
                 return userDiv === divFilter;
             });
         }
 
-        // Update Count Label
         document.getElementById('org-count-lbl').innerText = `(${filteredData.length})`;
 
-        // Recalculate Distribution for the Chart
         const globalRating = masterData.rating || 0;
         let dist = [0,0,0,0,0,0];
         
@@ -992,7 +964,6 @@
             dist[b]++;
         });
 
-        // Update Chart Data
         chartOrg.data.datasets[0].data = dist;
         chartOrg.update();
     }
@@ -1015,19 +986,16 @@
     }
 
     // --- 9. SCORECARD ---
-async function loadEval(tid, isSearchMode = false) {
+    async function loadEval(tid, isSearchMode = false) {
         try {
-            // 1. Fetch Data
             const { data, error } = await db.from('active_list').select('*').eq(COL.id, tid).single();
             
-            // 2. Error Check
             if (error || !data) {
                 console.error("Load Error:", error);
                 alert("❌ Could not load employee data. Please refresh and try again.");
                 return;
             }
 
-            // 3. Setup Context
             targetUser = data;
             const uRole = getRole(user); 
             
@@ -1041,7 +1009,6 @@ async function loadEval(tid, isSearchMode = false) {
             isDirectSupervisor = (mgrStr.includes(myId.toLowerCase()) || (myName.length > 3 && mgrStr.includes(myName)));
             isManager = isDirectSupervisor || (uRole === 'Admin' && !viewingSelf) || (uRole === 'Master' && !viewingSelf); 
 
-            // 4. Weight & Goals
             const w = getW(data[COL.lvl], data[COL.job]);
             let userGoals = targetUser[COL.goals];
             if (typeof userGoals === 'string') { try { userGoals = JSON.parse(userGoals); } catch (e) { userGoals = []; } }
@@ -1052,7 +1019,6 @@ async function loadEval(tid, isSearchMode = false) {
             
             const stat = data[COL.stat] || 'Draft';
 
-            // 5. Permissions
             let canEdit = false;
             if (viewingSelf) {
                 canEdit = (stat === 'Draft' || stat === 'Returned'); 
@@ -1064,7 +1030,6 @@ async function loadEval(tid, isSearchMode = false) {
             }
             if (isSearchMode) canEdit = false;
 
-            // 6. Start Rendering HTML
             let mName = data[COL.mgr]||'-'; if(mName.includes('(')) mName=mName.split('(')[0];
             const showScoreToViewer = (stat === 'Approved') || (isManager && !viewingSelf) || (['Admin','Master'].includes(uRole) && !viewingSelf);
 
@@ -1098,7 +1063,6 @@ async function loadEval(tid, isSearchMode = false) {
                     <div class="info-item"><label>Manager</label><div class="info-value">${mName}</div></div>
                 </div>`;
 
-            // 7. Check if Manager is blocked (Draft Stage)
             const managerBlocked = (isDirectSupervisor && (stat === 'Draft' || stat === 'Returned'));
             
             if (managerBlocked && !['Admin','Master'].includes(uRole)) {
@@ -1109,7 +1073,6 @@ async function loadEval(tid, isSearchMode = false) {
                     <p style="color:#94a3b8;">The employee has not submitted their scorecard yet.</p>
                 </div>`;
             } else {
-                // Shared Goals
                 if (w.s > 0) {
                     h += `
                     <div class="animate-in" style="margin-bottom:40px;">
@@ -1129,7 +1092,6 @@ async function loadEval(tid, isSearchMode = false) {
                     </div>`;
                 }
 
-                // Individual Goals Container
                 if (w.i > 0) {
                     h += `
                     <div class="animate-in">
@@ -1142,10 +1104,8 @@ async function loadEval(tid, isSearchMode = false) {
                 }
             }
 
-            // 8. Bottom Action Bar
             h += `<div style="margin-top:40px; padding-top:20px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:15px;">`;
 
-            // Employee / Manager Editing Actions
             if (canEdit) {
                 h += `<button class="btn btn-outline" onclick="saveDraft()"><i class="fa-regular fa-floppy-disk"></i> Save Draft</button>`;
                 let btnText = "Submit";
@@ -1154,20 +1114,17 @@ async function loadEval(tid, isSearchMode = false) {
                 h += `<button class="btn btn-primary" onclick="submitFinal()"><i class="fa-solid fa-paper-plane"></i> ${btnText}</button>`;
             } 
             
-            // Manager Reject Action
             if (isDirectSupervisor && stat === 'Submitted to Manager') {
                  h += `<button class="btn btn-outline" style="color:var(--danger); border-color:#fee2e2; background:#fff1f2;" onclick="rejectCard()"><i class="fa-solid fa-ban"></i> Reject / Request Changes</button>`;
             }
 
-            // HR Admin Actions
             if ((uRole === 'Admin' || uRole === 'Master') && stat === 'Submitted to HR') {
                  h += `<button class="btn btn-outline" style="color:var(--danger); border-color:#fee2e2; background:#fff1f2;" onclick="rejectToManager('${targetUser[COL.id]}')"><i class="fa-solid fa-rotate-left"></i> Reject to Manager</button>`;
                  h += `<button class="btn btn-primary" onclick="submitFinal()"><i class="fa-solid fa-check"></i> Final Approve (HR)</button>`;
             }
             
-            h += `</div>`; // Close Action Bar
+            h += `</div>`;
 
-            // 9. Final Render
             render(h);
             if (w.i > 0 && !managerBlocked) renderGoals(canEdit);
             calc();
@@ -1177,66 +1134,47 @@ async function loadEval(tid, isSearchMode = false) {
             alert("Unexpected error: " + err.message);
         }
     }
-async function rejectToManager(id) {
+
+    async function rejectToManager(id) {
         if(!confirm("Reject this scorecard? \n\nIt will be returned to the 'Submitted to Manager' status.\nThe Manager will be able to edit scores and resubmit.")) return;
         
-        // Return status to "Submitted to Manager" so the manager can edit it again
         const { error } = await db.from('active_list').update({ [COL.stat]: 'Submitted to Manager' }).eq(COL.id, id);
         
         if(error) {
             alert("Error: " + error.message);
         } else {
-            // Remove from local admin cache if we are in the admin view
             if(typeof adminCache !== 'undefined') {
                 adminCache = adminCache.filter(x => x[COL.id] !== id);
                 if(document.getElementById('admin-tbody')) filterAdminTable();
             }
             
-            // If we are inside the individual view, reload
             if(targetUser && targetUser[COL.id] === id) {
                 alert("❌ Card returned to Manager.");
-                loadHRAdmin(); // Go back to dashboard
+                if(['Admin','Master'].includes(getRole(user))) loadHRAdmin(); else location.reload();
             } else {
-                // If we are in the list view
                 filterAdminTable();
             }
         }
     }
+
     function renderGoals(edit) {
         const stat = targetUser[COL.stat] || 'Draft';
-        
-        // --- Strict ID Comparison ---
         const myId = (user[COL.id] || '').toString();
         const targetId = (targetUser[COL.id] || '').toString();
         const viewingSelf = (myId === targetId);
-        
         const uRole = getRole(user);
         
         document.getElementById('goal-list').innerHTML = targetUser[COL.goals].map((g,i) => {
+            let ratingDisplay = `<span style="font-weight:700; color:var(--text-muted); background:#f1f5f9; padding:6px 12px; border-radius:12px; display:inline-flex; align-items:center; gap:6px;"><i class="fa-solid fa-lock" style="font-size:0.8rem;"></i> Pending HR</span>`;
             
-            // 1. Default State: HIDDEN (Shows Lock Icon)
-            let ratingDisplay = `<span style="font-weight:700; color:var(--text-muted); background:#f1f5f9; padding:6px 12px; border-radius:12px; display:inline-flex; align-items:center; gap:6px;">
-                <i class="fa-solid fa-lock" style="font-size:0.8rem;"></i> Pending HR
-            </span>`;
-            
-            // 2. Manager/Admin Editing: Show Dropdown
             if (isDirectSupervisor && edit) {
-                ratingDisplay = `<select onchange="updG(${i},'rating',this.value)" style="padding:8px; border-radius:8px; border:1px solid var(--primary); color:var(--primary); font-weight:700; cursor:pointer;">
-                    <option value="0">Select Rating...</option>
-                    ${[1,2,3,4,5,6].map(n=>`<option value="${n}" ${g.rating==n?'selected':''}>${n} - ${ratingLabels[n]}</option>`).join('')}
-                </select>`;
+                ratingDisplay = `<select onchange="updG(${i},'rating',this.value)" style="padding:8px; border-radius:8px; border:1px solid var(--primary); color:var(--primary); font-weight:700; cursor:pointer;"><option value="0">Select Rating...</option>${[1,2,3,4,5,6].map(n=>`<option value="${n}" ${g.rating==n?'selected':''}>${n} - ${ratingLabels[n]}</option>`).join('')}</select>`;
             } 
-            // 3. Manager/Admin Viewing OTHER PEOPLE: Show Score
             else if (!viewingSelf && (isManager || ['Admin','Master'].includes(uRole))) {
-                ratingDisplay = `<span style="font-weight:700; color:var(--primary); background:var(--primary-soft); padding:6px 12px; border-radius:12px;">
-                    ${g.rating ? g.rating + ' - ' + ratingLabels[g.rating] : 'Not Rated'}
-                </span>`;
+                ratingDisplay = `<span style="font-weight:700; color:var(--primary); background:var(--primary-soft); padding:6px 12px; border-radius:12px;">${g.rating ? g.rating + ' - ' + ratingLabels[g.rating] : 'Not Rated'}</span>`;
             } 
-            // 4. Viewing SELF: Show Score ONLY if Approved
             else if (viewingSelf && stat === 'Approved') {
-                ratingDisplay = `<span style="font-weight:700; color:var(--primary); background:var(--primary-soft); padding:6px 12px; border-radius:12px;">
-                    ${g.rating ? g.rating + ' - ' + ratingLabels[g.rating] : 'Not Rated'}
-                </span>`;
+                ratingDisplay = `<span style="font-weight:700; color:var(--primary); background:var(--primary-soft); padding:6px 12px; border-radius:12px;">${g.rating ? g.rating + ' - ' + ratingLabels[g.rating] : 'Not Rated'}</span>`;
             }
 
             return `
@@ -1262,30 +1200,80 @@ async function rejectToManager(id) {
             </div>`;
         }).join('');
     }
+
+    function updG(i,f,v) { if(f==='rating') v = parseInt(v); targetUser[COL.goals][i][f]=v; calc(); autoSave(); }
+    function updT(gi,ti,v) { if(!targetUser[COL.goals][gi].targets) targetUser[COL.goals][gi].targets=Array(6).fill(''); targetUser[COL.goals][gi].targets[ti]=v; autoSave(); }
+    function addG() { targetUser[COL.goals].push({title:"New Goal",weight:0,unit:"",desc:"",rating:0,targets:Array(6).fill('')}); renderGoals(true); autoSave(); }
+    async function delG(i) { if(confirm("Delete goal?")) { targetUser[COL.goals].splice(i,1); renderGoals(true); calc(); autoSave(); } }
+    
+    function calc() {
+        if (!targetUser) return;
+        
+        const myId = (user[COL.id] || '').toString();
+        const targetId = (targetUser[COL.id] || '').toString();
+        const viewingSelf = (myId === targetId);
+        const w = getW(targetUser[COL.lvl], targetUser[COL.job]);
+        const globalRating = masterData.rating || 0;
+        const sScore = globalRating * (w.s/100);
+        let iScore = 0; 
+        
+        if (targetUser[COL.goals]) {
+            targetUser[COL.goals].forEach(g => iScore += (g.rating||0)*(g.weight||0));
+        }
+        
+        const total = sScore + (iScore * (w.i/100));
+        const uRole = getRole(user);
+        const stat = targetUser[COL.stat];
+        const showScoreToViewer = (stat === 'Approved') || (isManager && !viewingSelf) || (['Admin','Master'].includes(uRole) && !viewingSelf);
+        
+        const scoreEl = document.getElementById('score');
+        const ratingEl = document.getElementById('rating');
+
+        if (showScoreToViewer) {
+            scoreEl.innerText = total.toFixed(2);
+            let lbl = "-"; 
+            if(total>=5.5) lbl="ASTRONAUT"; 
+            else if(total>=4.5) lbl="FLYER"; 
+            else if(total>=3.5) lbl="RUNNER"; 
+            else if(total>=2.5) lbl="WALKER"; 
+            else if(total>=1.5) lbl="STAGNANT"; 
+            else if(total>0) lbl="IDLE";
+            ratingEl.innerText = lbl;
+        } else {
+            scoreEl.innerHTML = '<i class="fa-solid fa-lock" style="font-size:1.5rem; opacity:0.3;"></i>';
+            ratingEl.innerText = "Pending HR";
+        }
+    }
+
+    function autoSave() {
+        if(SUPABASE_URL.includes("YOUR")) return; 
+        showSaving(); clearTimeout(saveTimer);
+        saveTimer = setTimeout(async () => {
+            let u = {}; u[COL.goals]=targetUser[COL.goals]; 
+            const { error } = await db.from('active_list').update(u).eq(COL.id, targetUser[COL.id]);
+            if(error) console.error(error); else showSaved();
+        }, 500); 
+    }
+
     function showSaving() { document.getElementById('save-status').classList.add('show'); document.getElementById('save-dot').className='save-dot saving'; document.getElementById('save-text').innerText="Saving..."; }
     function showSaved() { document.getElementById('save-dot').className='save-dot saved'; document.getElementById('save-text').innerText="All changes saved"; setTimeout(()=>document.getElementById('save-status').classList.remove('show'),2000); }
     async function saveDraft() { autoSave(); }
 
     async function submitFinal() {
-        // --- 1. WEIGHT VALIDATION CHECK ---
         const w = getW(targetUser[COL.lvl], targetUser[COL.job]);
-        const allowedPct = w.i; // The required weight (e.g., 90, 65, etc.)
+        const allowedPct = w.i;
         
         let currentSum = 0;
         if (targetUser[COL.goals]) {
             targetUser[COL.goals].forEach(g => currentSum += (g.weight || 0));
         }
-        
-        // Convert to percentage and round to avoid floating point errors (e.g. 0.1 + 0.2 = 0.30000004)
         const currentPct = Math.round(currentSum * 100);
 
         if (currentPct !== allowedPct) {
-            alert(`⛔ Cannot Submit\n\nTotal Weight is ${currentPct}%.\nIt must be exactly ${allowedPct}% for your role.\n\nPlease adjust the weights of your individual goals.`);
-            return; // Stop execution here
+            alert(`⛔ Cannot Submit\n\nTotal Weight is ${currentPct}%.\nIt must be exactly ${allowedPct}% for your role.`);
+            return;
         }
 
-        // --- 2. EXISTING SUBMISSION LOGIC ---
-        // Fix string conversion for ID comparison
         const myId = (user[COL.id] || '').toString();
         const targetId = (targetUser[COL.id] || '').toString();
         const viewingSelf = (myId === targetId);
@@ -1308,26 +1296,18 @@ async function rejectToManager(id) {
 
         if(!confirm(confirmMsg)) return;
         
-        let u = {}; 
-        u[COL.goals] = targetUser[COL.goals]; 
-        u[COL.stat] = newStatus;
+        let u = {}; u[COL.goals] = targetUser[COL.goals]; u[COL.stat] = newStatus;
 
         const { error } = await db.from('active_list').update(u).eq(COL.id, targetUser[COL.id]);
         if(error) alert("Error: "+error.message); 
-        else { 
-            alert("✅ Status updated to: " + newStatus); 
-            location.reload(); 
-        }
+        else { alert("✅ Status updated to: " + newStatus); location.reload(); }
     }
     
     async function rejectCard() {
         if(!confirm("Reject this scorecard and return it to the employee for editing?")) return;
         const { error } = await db.from('active_list').update({ [COL.stat]: 'Returned' }).eq(COL.id, targetUser[COL.id]);
         if(error) alert("Error: " + error.message);
-        else {
-            alert("Card returned to Employee.");
-            location.reload();
-        }
+        else { alert("Card returned to Employee."); location.reload(); }
     }
 
     function render(h) { document.getElementById('main-view').innerHTML = h; }
@@ -1378,12 +1358,3 @@ async function rejectToManager(id) {
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
