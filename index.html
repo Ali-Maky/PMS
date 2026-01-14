@@ -1032,6 +1032,12 @@
 
             let mName = data[COL.mgr]||'-'; if(mName.includes('(')) mName=mName.split('(')[0];
             const showScoreToViewer = (stat === 'Approved') || (isManager && !viewingSelf) || (['Admin','Master'].includes(uRole) && !viewingSelf);
+            
+            // --- COMPANY NAME LOGIC ---
+            let comp = "Zain Iraq";
+            const cleanId = (data[COL.id]||"").toString().toUpperCase();
+            if(cleanId.startsWith("HISP")) comp = "Horizon";
+            else if(cleanId.startsWith("NG")) comp = "Next Generation";
 
             let h = `
                 <div class="header-bar">
@@ -1061,6 +1067,7 @@
                     <div class="info-item"><label>Job</label><div class="info-value">${data[COL.job]||'-'}</div></div>
                     <div class="info-item"><label>Division</label><div class="info-value">${data[COL.div]||'-'}</div></div>
                     <div class="info-item"><label>Manager</label><div class="info-value">${mName}</div></div>
+                    <div class="info-item"><label>Company</label><div class="info-value" style="color:var(--primary); font-weight:700;">${comp}</div></div>
                 </div>`;
 
             const managerBlocked = (isDirectSupervisor && (stat === 'Draft' || stat === 'Returned'));
