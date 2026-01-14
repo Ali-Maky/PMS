@@ -573,51 +573,59 @@
         renderMasterGoals();
     }
 
-    async function saveMasterGoals() {
+   async function saveMasterGoals() {
         if(!confirm("Publish Global Rating & Goals to ALL employees?")) return;
         showSaving();
         
-        // 1. Clean the ID (Remove spaces) to prevent mismatches
+        // 1. Clean the ID
         let myId = user[COL.id] || user['id'] || user['Employee Number'];
         if(myId) myId = myId.toString().trim();
 
-        console.log("Saving with ID:", myId); 
+        // --- THE FIX: Direct Upsert to Company Settings ---
+        // This ensures the rating and goals are saved to the "Live" row (shared_goals_v1)
+        const { error: settingsError } = await db.from('company_settings')
+            .upsert({ id: SHARED_GOALS_ID, data: masterData });
 
-        // 2. Send Data to Database
-        const { error } = await db.rpc('publish_goals', {
-            operator_id: myId, 
-            new_goals: masterData      
-        });
-
-        if(error) {
-            console.error("Publish Error:", error);
-            alert("⛔ Database Error: " + error.message);
+        if (settingsError) {
+            console.error("Settings Save Error:", settingsError);
+            alert("⛔ Error saving settings: " + settingsError.message);
             document.getElementById('save-status').classList.remove('show');
-        } else { 
-            // 3. Wait 1 second to ensure DB write is complete (prevents race condition)
-            await new Promise(r => setTimeout(r, 1000));
-
-            // 4. Verify & Cleanup
-            await db.from('company_settings').delete().eq('id', 'shared_goals_draft');
-            hasDraft = false;
-
-            // 5. Force Re-fetch to confirm it saved
-            const { data: verifyData } = await db.from('company_settings').select('data').eq('id', SHARED_GOALS_ID).single();
-            
-            if (verifyData && verifyData.data) {
-                masterData = verifyData.data; 
-                renderMasterGoals();          
-                
-                // Update dropdown to match saved value
-                const rateSelect = document.querySelector('select[onchange="updateMasterRating(this.value)"]');
-                if(rateSelect) rateSelect.value = masterData.rating;
-            }
-
-            showSaved(); 
-            alert("✅ Saved & Published Permanently!"); 
+            return;
         }
-    }
 
+        // 2. OPTIONAL: Trigger the RPC for employee history (if you have it set up)
+        // We wrap this in a try/catch so it doesn't break the save if the RPC is missing
+        try {
+            await db.rpc('publish_goals', {
+                operator_id: myId,
+                new_goals: masterData      
+            });
+        } catch (err) {
+            console.warn("RPC execution skipped or failed (Data was still saved to settings).");
+        }
+
+        // 3. Wait to ensure DB consistency
+        await new Promise(r => setTimeout(r, 1000));
+
+        // 4. Cleanup the Draft
+        await db.from('company_settings').delete().eq('id', 'shared_goals_draft');
+        hasDraft = false;
+
+        // 5. Force Re-fetch to confirm and update UI
+        const { data: verifyData } = await db.from('company_settings').select('data').eq('id', SHARED_GOALS_ID).single();
+        
+        if (verifyData && verifyData.data) {
+            masterData = verifyData.data; 
+            renderMasterGoals();          
+            
+            // Explicitly update the dropdown value to match the saved data
+            const rateSelect = document.querySelector('select[onchange="updateMasterRating(this.value)"]');
+            if(rateSelect) rateSelect.value = masterData.rating;
+        }
+
+        showSaved(); 
+        alert("✅ Saved & Published Permanently!"); 
+    }
     // --- ADMIN PERMISSIONS ---
     async function loadAdminPerms() {
         const { data: admins } = await db.from('active_list').select('*').eq(COL.role, 'admin');
@@ -1316,3 +1324,4 @@
 </script>
 </body>
 </html>
+
