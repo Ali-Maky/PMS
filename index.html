@@ -735,12 +735,31 @@
         filterAdminTable();
     }
 
-    function filterAdminTable() {
+   function filterAdminTable() {
         const f = document.getElementById('div-filter').value;
         const tbody = document.getElementById('admin-tbody');
         const visible = adminCache.filter(r => f === 'ALL' || (r[COL.div]||'Other') === f);
-        if(visible.length === 0) { tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px;">No pending approvals found.</td></tr>`; return; }
-        tbody.innerHTML = visible.map(r => `<tr><td style="font-weight:600;">${r[COL.name]}</td><td>${r[COL.div]||'-'}</td><td>${r[COL.job]||'-'}</td><td>${r[COL.mgr]||'-'}</td><td><button class="btn btn-outline" style="padding:6px 12px; font-size:0.8rem;" onclick="loadEval('${r[COL.id]}')">View</button> <button class="btn btn-primary" style="padding:6px 12px; font-size:0.8rem;" onclick="approveSingle('${r[COL.id]}')">Approve</button></td></tr>`).join('');
+        
+        if(visible.length === 0) { 
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px;">No pending approvals found.</td></tr>`; 
+            return; 
+        }
+        
+        tbody.innerHTML = visible.map(r => `
+            <tr>
+                <td style="font-weight:600;">${r[COL.name]}</td>
+                <td>${r[COL.div]||'-'}</td>
+                <td>${r[COL.job]||'-'}</td>
+                <td>${r[COL.mgr]||'-'}</td>
+                <td>
+                    <div style="display:flex; gap:6px;">
+                        <button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem;" onclick="loadEval('${r[COL.id]}')">View</button> 
+                        <button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem; color:var(--danger); border-color:#fee2e2;" onclick="rejectToManager('${r[COL.id]}')">Reject</button>
+                        <button class="btn btn-primary" style="padding:6px 10px; font-size:0.75rem;" onclick="approveSingle('${r[COL.id]}')">Approve</button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
     }
 
     async function loadAdminSearch() { 
@@ -1030,8 +1049,15 @@
             canEdit = (stat === 'Submitted to Manager'); 
         }
         
-        if ((uRole === 'Admin' || uRole === 'Master') && !viewingSelf) {
-            canEdit = true; 
+      // --- HR ADMIN ACTIONS (Inside View) ---
+        if ((uRole === 'Admin' || uRole === 'Master') && stat === 'Submitted to HR') {
+             h += `<button class="btn btn-outline" style="color:var(--danger); border-color:#fee2e2; background:#fff1f2;" onclick="rejectToManager('${targetUser[COL.id]}')">
+                <i class="fa-solid fa-rotate-left"></i> Reject to Manager
+             </button>`;
+             
+             h += `<button class="btn btn-primary" onclick="submitFinal()">
+                <i class="fa-solid fa-check"></i> Final Approve (HR)
+             </button>`;
         }
         if (isSearchMode) canEdit = false;
 
@@ -1257,7 +1283,31 @@
             if(error) console.error(error); else showSaved();
         }, 500); 
     }
-
+async function rejectToManager(id) {
+        if(!confirm("Reject this scorecard? \n\nIt will be returned to the 'Submitted to Manager' status.\nThe Manager will be able to edit scores and resubmit.")) return;
+        
+        // Return status to "Submitted to Manager" so the manager can edit it again
+        const { error } = await db.from('active_list').update({ [COL.stat]: 'Submitted to Manager' }).eq(COL.id, id);
+        
+        if(error) {
+            alert("Error: " + error.message);
+        } else {
+            // Remove from local admin cache if we are in the admin view
+            if(typeof adminCache !== 'undefined') {
+                adminCache = adminCache.filter(x => x[COL.id] !== id);
+                if(document.getElementById('admin-tbody')) filterAdminTable();
+            }
+            
+            // If we are inside the individual view, reload
+            if(targetUser && targetUser[COL.id] === id) {
+                alert("❌ Card returned to Manager.");
+                loadHRAdmin(); // Go back to dashboard
+            } else {
+                // If we are in the list view
+                filterAdminTable();
+            }
+        }
+    }
     function showSaving() { document.getElementById('save-status').classList.add('show'); document.getElementById('save-dot').className='save-dot saving'; document.getElementById('save-text').innerText="Saving..."; }
     function showSaved() { document.getElementById('save-dot').className='save-dot saved'; document.getElementById('save-text').innerText="All changes saved"; setTimeout(()=>document.getElementById('save-status').classList.remove('show'),2000); }
     async function saveDraft() { autoSave(); }
@@ -1374,6 +1424,7 @@
 </script>
 </body>
 </html>
+
 
 
 
