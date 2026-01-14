@@ -577,9 +577,11 @@
         if(!confirm("Publish Global Rating & Goals to ALL employees?")) return;
         showSaving();
         
-        // Ensure we are sending the correct ID
+        // 1. Identify the user
         const myId = user[COL.id] || user['id'] || user['Employee Number'];
 
+        // 2. Send Data to Database (Secure RPC)
+        console.log("Sending Payload:", masterData); // Debug log
         const { error } = await db.rpc('publish_goals', {
             operator_id: myId, 
             new_goals: masterData      
@@ -587,19 +589,31 @@
 
         if(error) {
             console.error("Publish Error:", error);
-            // Show the exact error message from the database
             alert("⛔ Database Error: " + error.message);
             document.getElementById('save-status').classList.remove('show');
         } else { 
-            // Cleanup the draft after successful publish
+            // 3. Wait 1 second (1000ms) to ensure DB write is complete
+            await new Promise(r => setTimeout(r, 1000));
+
+            // 4. Verify & Cleanup
             await db.from('company_settings').delete().eq('id', 'shared_goals_draft');
             hasDraft = false;
+
+            const { data: verifyData } = await db.from('company_settings').select('data').eq('id', SHARED_GOALS_ID).single();
+            
+            if (verifyData && verifyData.data) {
+                masterData = verifyData.data; 
+                renderMasterGoals();          
+                
+                // Force update the dropdown to match the saved value
+                const rateSelect = document.querySelector('select[onchange="updateMasterRating(this.value)"]');
+                if(rateSelect) rateSelect.value = masterData.rating;
+            }
+
             showSaved(); 
-            loadAdminSharedGoals(); 
             alert("✅ Published Successfully!"); 
         }
     }
-
     // --- ADMIN PERMISSIONS ---
     async function loadAdminPerms() {
         const { data: admins } = await db.from('active_list').select('*').eq(COL.role, 'admin');
@@ -1289,3 +1303,4 @@
 </script>
 </body>
 </html>
+
