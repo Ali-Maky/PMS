@@ -1263,7 +1263,29 @@
     async function saveDraft() { autoSave(); }
 
     async function submitFinal() {
-        const viewingSelf = (user[COL.id] === targetUser[COL.id]);
+        // --- 1. WEIGHT VALIDATION CHECK ---
+        const w = getW(targetUser[COL.lvl], targetUser[COL.job]);
+        const allowedPct = w.i; // The required weight (e.g., 90, 65, etc.)
+        
+        let currentSum = 0;
+        if (targetUser[COL.goals]) {
+            targetUser[COL.goals].forEach(g => currentSum += (g.weight || 0));
+        }
+        
+        // Convert to percentage and round to avoid floating point errors (e.g. 0.1 + 0.2 = 0.30000004)
+        const currentPct = Math.round(currentSum * 100);
+
+        if (currentPct !== allowedPct) {
+            alert(`⛔ Cannot Submit\n\nTotal Weight is ${currentPct}%.\nIt must be exactly ${allowedPct}% for your role.\n\nPlease adjust the weights of your individual goals.`);
+            return; // Stop execution here
+        }
+
+        // --- 2. EXISTING SUBMISSION LOGIC ---
+        // Fix string conversion for ID comparison
+        const myId = (user[COL.id] || '').toString();
+        const targetId = (targetUser[COL.id] || '').toString();
+        const viewingSelf = (myId === targetId);
+        
         const uRole = getRole(user);
         
         let confirmMsg = "Are you sure?";
@@ -1352,6 +1374,7 @@
 </script>
 </body>
 </html>
+
 
 
 
