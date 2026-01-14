@@ -573,7 +573,7 @@
         renderMasterGoals();
     }
 
- async function saveMasterGoals() {
+    async function saveMasterGoals() {
         if(!confirm("Publish Global Rating & Goals to ALL employees?")) return;
         showSaving();
         
@@ -599,6 +599,7 @@
             alert("✅ Published Successfully!"); 
         }
     }
+
     // --- ADMIN PERMISSIONS ---
     async function loadAdminPerms() {
         const { data: admins } = await db.from('active_list').select('*').eq(COL.role, 'admin');
@@ -1074,7 +1075,12 @@
                                 <div class="shared-header">${g.title}</div>
                                 <div class="segment-bar">
                                     ${[1,2,3,4,5,6].map(n => {
-                                        const isTarget = (n === 4); const isActive = (globalRating == n);
+                                        const isTarget = (n === 4);
+                                        // UPDATED LOGIC: 
+                                        // Force isActive to false so the rating is NEVER highlighted on the employee scorecard.
+                                        // It is only visible in the Admin Panel dropdown.
+                                        const isActive = false; 
+                                        
                                         return `<div class="segment ${isActive ? 'active' : ''} ${isTarget ? 'is-target' : ''}">${isTarget ? '<div class="target-badge">TARGET</div>' : ''}<div class="seg-num">${n}</div><div class="seg-val">${g.targets[n-1]}</div></div>`;
                                     }).join('')}
                                 </div>
@@ -1095,21 +1101,16 @@
             }
         }
 
-        // FOOTER BUTTONS
         h += `<div style="margin-top:40px; padding-top:20px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:15px;">`;
 
         if (canEdit) {
             h += `<button class="btn btn-outline" onclick="saveDraft()"><i class="fa-regular fa-floppy-disk"></i> Save Draft</button>`;
-            
-            // Logic for Submit Button Text
             let btnText = "Submit";
             if (viewingSelf) btnText = "Submit to Manager"; 
             else if (isManager) btnText = "Approve & Submit to HR";
-            
             h += `<button class="btn btn-primary" onclick="submitFinal()"><i class="fa-solid fa-paper-plane"></i> ${btnText}</button>`;
         } 
         
-        // REJECTION BUTTON (Only for Manager when status is 'Submitted to Manager')
         if (isManager && stat === 'Submitted to Manager') {
              h += `<button class="btn btn-outline" style="color:var(--danger); border-color:#fee2e2; background:#fff1f2;" onclick="rejectCard()"><i class="fa-solid fa-ban"></i> Reject / Request Changes</button>`;
         }
@@ -1287,5 +1288,4 @@
     }
 </script>
 </body>
-
 </html>
