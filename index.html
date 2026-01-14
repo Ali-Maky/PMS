@@ -1202,6 +1202,66 @@ async function rejectToManager(id) {
             }
         }
     }
+    function renderGoals(edit) {
+        const stat = targetUser[COL.stat] || 'Draft';
+        
+        // --- Strict ID Comparison ---
+        const myId = (user[COL.id] || '').toString();
+        const targetId = (targetUser[COL.id] || '').toString();
+        const viewingSelf = (myId === targetId);
+        
+        const uRole = getRole(user);
+        
+        document.getElementById('goal-list').innerHTML = targetUser[COL.goals].map((g,i) => {
+            
+            // 1. Default State: HIDDEN (Shows Lock Icon)
+            let ratingDisplay = `<span style="font-weight:700; color:var(--text-muted); background:#f1f5f9; padding:6px 12px; border-radius:12px; display:inline-flex; align-items:center; gap:6px;">
+                <i class="fa-solid fa-lock" style="font-size:0.8rem;"></i> Pending HR
+            </span>`;
+            
+            // 2. Manager/Admin Editing: Show Dropdown
+            if (isDirectSupervisor && edit) {
+                ratingDisplay = `<select onchange="updG(${i},'rating',this.value)" style="padding:8px; border-radius:8px; border:1px solid var(--primary); color:var(--primary); font-weight:700; cursor:pointer;">
+                    <option value="0">Select Rating...</option>
+                    ${[1,2,3,4,5,6].map(n=>`<option value="${n}" ${g.rating==n?'selected':''}>${n} - ${ratingLabels[n]}</option>`).join('')}
+                </select>`;
+            } 
+            // 3. Manager/Admin Viewing OTHER PEOPLE: Show Score
+            else if (!viewingSelf && (isManager || ['Admin','Master'].includes(uRole))) {
+                ratingDisplay = `<span style="font-weight:700; color:var(--primary); background:var(--primary-soft); padding:6px 12px; border-radius:12px;">
+                    ${g.rating ? g.rating + ' - ' + ratingLabels[g.rating] : 'Not Rated'}
+                </span>`;
+            } 
+            // 4. Viewing SELF: Show Score ONLY if Approved
+            else if (viewingSelf && stat === 'Approved') {
+                ratingDisplay = `<span style="font-weight:700; color:var(--primary); background:var(--primary-soft); padding:6px 12px; border-radius:12px;">
+                    ${g.rating ? g.rating + ' - ' + ratingLabels[g.rating] : 'Not Rated'}
+                </span>`;
+            }
+
+            return `
+            <div class="goal-card animate-in">
+                <div class="goal-header-row">
+                    <input value="${g.title}" class="goal-input-title" onchange="updG(${i},'title',this.value)" ${edit?'':'readonly'} placeholder="Enter Goal Title...">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div class="chip">Wt: <input type="number" value="${(g.weight*100)}" onchange="updG(${i},'weight',this.value/100)" ${edit?'':'readonly'}>%</div>
+                        ${edit ? `<button class="btn-delete" onclick="delG(${i})"><i class="fa-solid fa-trash-can"></i></button>` : ''}
+                    </div>
+                </div>
+                <div class="goal-body">
+                    <textarea class="goal-desc" rows="2" placeholder="Describe..." onchange="updG(${i},'desc',this.value)" ${edit?'':'readonly'}>${g.desc||''}</textarea>
+                    <table class="target-table">
+                        <thead><tr><th>1</th><th>2</th><th>3</th><th class="runner-col">4</th><th>5</th><th>6</th></tr></thead>
+                        <tbody><tr>${(g.targets||Array(6).fill('')).map((t,ti)=>`<td><input class="target-input" value="${t}" onchange="updT(${i},${ti},this.value)" ${edit?'':'readonly'}></td>`).join('')}</tr></tbody>
+                    </table>
+                </div>
+                <div style="background:#f8fafc; border-top:1px solid var(--border); padding:12px 24px; display:flex; justify-content:flex-end; align-items:center; gap:12px;">
+                    <span style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Rating</span>
+                    ${ratingDisplay}
+                </div>
+            </div>`;
+        }).join('');
+    }
     function showSaving() { document.getElementById('save-status').classList.add('show'); document.getElementById('save-dot').className='save-dot saving'; document.getElementById('save-text').innerText="Saving..."; }
     function showSaved() { document.getElementById('save-dot').className='save-dot saved'; document.getElementById('save-text').innerText="All changes saved"; setTimeout(()=>document.getElementById('save-status').classList.remove('show'),2000); }
     async function saveDraft() { autoSave(); }
@@ -1318,6 +1378,7 @@ async function rejectToManager(id) {
 </script>
 </body>
 </html>
+
 
 
 
