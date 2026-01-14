@@ -577,9 +577,10 @@
         if(!confirm("Publish Global Rating & Goals to ALL employees?")) return;
         showSaving();
         
-        // Ensure we are sending the correct ID
+        // 1. Identify the user
         const myId = user[COL.id] || user['id'] || user['Employee Number'];
 
+        // 2. Send Data to Database (Secure RPC)
         const { error } = await db.rpc('publish_goals', {
             operator_id: myId, 
             new_goals: masterData      
@@ -587,16 +588,26 @@
 
         if(error) {
             console.error("Publish Error:", error);
-            // Show the exact error message from the database
             alert("⛔ Database Error: " + error.message);
             document.getElementById('save-status').classList.remove('show');
         } else { 
-            // Cleanup the draft after successful publish
+            // 3. SUCCESS: Cleanup Draft
             await db.from('company_settings').delete().eq('id', 'shared_goals_draft');
             hasDraft = false;
+
+            // 4. CRITICAL FIX: Force Re-Fetch of Live Data
+            const { data: verifyData } = await db.from('company_settings').select('data').eq('id', SHARED_GOALS_ID).single();
+            
+            if (verifyData && verifyData.data) {
+                masterData = verifyData.data; 
+                renderMasterGoals();          
+                
+                const rateSelect = document.querySelector('select[onchange="updateMasterRating(this.value)"]');
+                if(rateSelect) rateSelect.value = masterData.rating;
+            }
+
             showSaved(); 
-            loadAdminSharedGoals(); 
-            alert("✅ Published Successfully!"); 
+            alert("✅ Published & Verified! \nGlobal Rating is now: " + (masterData.rating || "Pending")); 
         }
     }
 
@@ -1002,32 +1013,27 @@
         const stat = data[COL.stat] || 'Draft';
 
         // --- 1. EDIT RIGHTS LOGIC ---
-        // Employee: Can only edit if Draft. Locked if Submitted.
-        // Manager: Can only edit (rate) if 'Submitted to Manager'. Locked if Draft or Approved.
         let canEdit = false;
         if (viewingSelf) {
-            canEdit = (stat === 'Draft' || stat === 'Returned'); // Employee can edit only in these states
+            canEdit = (stat === 'Draft' || stat === 'Returned'); 
         } else if (isManager) {
-            canEdit = (stat === 'Submitted to Manager'); // Manager can only edit when submitted to them
+            canEdit = (stat === 'Submitted to Manager'); 
         }
         
-        // God Mode (Admin/Master can always edit unless strictly viewing self as user)
         if ((uRole === 'Admin' || uRole === 'Master') && !viewingSelf) {
             canEdit = true; 
         }
         if (isSearchMode) canEdit = false;
 
-        // --- 2. MANAGER VISIBILITY LOGIC (Requirement: Empty until submitted) ---
-        // If I am the manager, and the status is Draft, I should NOT see the content yet.
+        // --- 2. MANAGER VISIBILITY LOGIC ---
         const managerBlocked = (isDirectSupervisor && (stat === 'Draft' || stat === 'Returned'));
 
-        // --- 3. SCORE VISIBILITY LOGIC (Requirement: Hidden until HR Approved) ---
-        // Logic: 
-        // - Employee: sees ONLY if Approved.
-        // - Manager/Admin: sees if Approved OR if Submitted (so they can rate).
+        // --- 3. SCORE VISIBILITY LOGIC ---
         const showScoreToViewer = (stat === 'Approved') || (isManager && !viewingSelf) || (['Admin','Master'].includes(uRole) && !viewingSelf);
 
         let mName = data[COL.mgr]||'-'; if(mName.includes('(')) mName=mName.split('(')[0];
+        
+        // GLOBAL RATING (Used for calculation, but hidden from visual grid)
         const globalRating = masterData.rating || 0;
 
         let h = `
@@ -1053,7 +1059,6 @@
                 <div class="info-item"><label>Name</label><div class="info-value">${data[COL.name]}</div></div><div class="info-item"><label>ID</label><div class="info-value">${data[COL.id]}</div></div><div class="info-item"><label>Job</label><div class="info-value">${data[COL.job]||'-'}</div></div><div class="info-item"><label>Division</label><div class="info-value">${data[COL.div]||'-'}</div></div><div class="info-item"><label>Manager</label><div class="info-value">${mName}</div></div>
             </div>`;
 
-        // BLOCKER FOR MANAGER IF DRAFT
         if (managerBlocked && !['Admin','Master'].includes(uRole)) {
             h += `
             <div class="card" style="text-align:center; padding:60px;">
@@ -1062,7 +1067,7 @@
                 <p style="color:#94a3b8;">The employee has not submitted their scorecard yet.<br>It will appear here once they click "Submit to Manager".</p>
             </div>`;
         } else {
-            // SHOW CONTENT
+            // --- SHARED GOALS RENDERING ---
             if (w.s > 0) {
                 h += `
                 <div class="animate-in" style="margin-bottom:40px;">
@@ -1076,9 +1081,6 @@
                                 <div class="segment-bar">
                                     ${[1,2,3,4,5,6].map(n => {
                                         const isTarget = (n === 4);
-                                        // UPDATED LOGIC: 
-                                        // Force isActive to false so the rating is NEVER highlighted on the employee scorecard.
-                                        // It is only visible in the Admin Panel dropdown.
                                         const isActive = false; 
                                         
                                         return `<div class="segment ${isActive ? 'active' : ''} ${isTarget ? 'is-target' : ''}">${isTarget ? '<div class="target-badge">TARGET</div>' : ''}<div class="seg-num">${n}</div><div class="seg-val">${g.targets[n-1]}</div></div>`;
@@ -1124,167 +1126,6 @@
         render(h);
         if (w.i > 0 && !managerBlocked) renderGoals(canEdit);
         calc();
-    }
-
-    function renderGoals(edit) {
-        document.getElementById('goal-list').innerHTML = targetUser[COL.goals].map((g,i) => `
-            <div class="goal-card animate-in">
-                <div class="goal-header-row">
-                    <input value="${g.title}" class="goal-input-title" onchange="updG(${i},'title',this.value)" ${edit?'':'readonly'} placeholder="Enter Goal Title...">
-                    <div style="display:flex; align-items:center; gap:12px;">
-                        <div class="chip">Wt: <input type="number" value="${(g.weight*100)}" onchange="updG(${i},'weight',this.value/100)" ${edit?'':'readonly'}>%</div>
-                        ${edit ? `<button class="btn-delete" onclick="delG(${i})"><i class="fa-solid fa-trash-can"></i></button>` : ''}
-                    </div>
-                </div>
-                <div class="goal-body">
-                    <textarea class="goal-desc" rows="2" placeholder="Describe..." onchange="updG(${i},'desc',this.value)" ${edit?'':'readonly'}>${g.desc||''}</textarea>
-                    <table class="target-table">
-                        <thead><tr><th>1</th><th>2</th><th>3</th><th class="runner-col">4</th><th>5</th><th>6</th></tr></thead>
-                        <tbody><tr>${(g.targets||Array(6).fill('')).map((t,ti)=>`<td><input class="target-input" value="${t}" onchange="updT(${i},${ti},this.value)" ${edit?'':'readonly'}></td>`).join('')}</tr></tbody>
-                    </table>
-                </div>
-                <div style="background:#f8fafc; border-top:1px solid var(--border); padding:12px 24px; display:flex; justify-content:flex-end; align-items:center; gap:12px;">
-                    <span style="font-size:0.75rem; font-weight:700; color:var(--primary); text-transform:uppercase;">Rating</span>
-                    ${(isDirectSupervisor && edit) ? `<select onchange="updG(${i},'rating',this.value)" style="padding:6px; border-radius:8px;"><option value="0">Select...</option>${[1,2,3,4,5,6].map(n=>`<option value="${n}" ${g.rating==n?'selected':''}>${n} - ${ratingLabels[n]}</option>`).join('')}</select>` : `<span style="font-weight:700; color:var(--primary); background:var(--primary-soft); padding:4px 10px; border-radius:12px;">${g.rating?ratingLabels[g.rating]:'Pending'}</span>`}
-                </div>
-            </div>`).join('');
-    }
-
-    function updG(i,f,v) { if(f==='rating') v = parseInt(v); targetUser[COL.goals][i][f]=v; calc(); autoSave(); }
-    function updT(gi,ti,v) { if(!targetUser[COL.goals][gi].targets) targetUser[COL.goals][gi].targets=Array(6).fill(''); targetUser[COL.goals][gi].targets[ti]=v; autoSave(); }
-    function addG() { targetUser[COL.goals].push({title:"New Goal",weight:0,unit:"",desc:"",rating:0,targets:Array(6).fill('')}); renderGoals(true); autoSave(); }
-    async function delG(i) { if(confirm("Delete goal?")) { targetUser[COL.goals].splice(i,1); renderGoals(true); calc(); autoSave(); } }
-    
-    function calc() {
-        if (!targetUser) return;
-        const w = getW(targetUser[COL.lvl], targetUser[COL.job]);
-        const globalRating = masterData.rating || 0;
-        const sScore = globalRating * (w.s/100);
-        let iScore = 0; 
-        
-        if (targetUser[COL.goals]) {
-            targetUser[COL.goals].forEach(g => iScore += (g.rating||0)*(g.weight||0));
-        }
-        
-        const total = sScore + (iScore * (w.i/100));
-        
-        // --- VISIBILITY CHECK ---
-        const viewingSelf = (user[COL.id] === targetUser[COL.id]);
-        const uRole = getRole(user);
-        const stat = targetUser[COL.stat];
-        const showScoreToViewer = (stat === 'Approved') || (isManager && !viewingSelf) || (['Admin','Master'].includes(uRole) && !viewingSelf);
-        
-        if (showScoreToViewer) {
-            document.getElementById('score').innerText = total.toFixed(2);
-            let lbl = "-"; 
-            if(total>=5.5) lbl="ASTRONAUT"; 
-            else if(total>=4.5) lbl="FLYER"; 
-            else if(total>=3.5) lbl="RUNNER"; 
-            else if(total>=2.5) lbl="WALKER"; 
-            else if(total>=1.5) lbl="STAGNANT"; 
-            else if(total>0) lbl="IDLE";
-            document.getElementById('rating').innerText = lbl;
-        } 
-    }
-
-    function autoSave() {
-        if(SUPABASE_URL.includes("YOUR")) return; 
-        showSaving(); clearTimeout(saveTimer);
-        saveTimer = setTimeout(async () => {
-            let u = {}; u[COL.goals]=targetUser[COL.goals]; 
-            const { error } = await db.from('active_list').update(u).eq(COL.id, targetUser[COL.id]);
-            if(error) console.error(error); else showSaved();
-        }, 500); 
-    }
-
-    function showSaving() { document.getElementById('save-status').classList.add('show'); document.getElementById('save-dot').className='save-dot saving'; document.getElementById('save-text').innerText="Saving..."; }
-    function showSaved() { document.getElementById('save-dot').className='save-dot saved'; document.getElementById('save-text').innerText="All changes saved"; setTimeout(()=>document.getElementById('save-status').classList.remove('show'),2000); }
-    async function saveDraft() { autoSave(); }
-
-    async function submitFinal() {
-        const viewingSelf = (user[COL.id] === targetUser[COL.id]);
-        const uRole = getRole(user);
-        
-        let confirmMsg = "Are you sure?";
-        let newStatus = "";
-
-        if (viewingSelf) {
-            confirmMsg = "Submit to Manager? You will not be able to edit this anymore.";
-            newStatus = "Submitted to Manager";
-        } else if (isDirectSupervisor) {
-            confirmMsg = "Approve and Submit to HR? Scores will be calculated but hidden until HR confirmation.";
-            newStatus = "Submitted to HR";
-        } else if (uRole === 'Admin' || uRole === 'Master') {
-            confirmMsg = "Final Approve? This will reveal scores to the employee.";
-            newStatus = "Approved";
-        }
-
-        if(!confirm(confirmMsg)) return;
-        
-        let u = {}; 
-        u[COL.goals] = targetUser[COL.goals]; 
-        u[COL.stat] = newStatus;
-
-        const { error } = await db.from('active_list').update(u).eq(COL.id, targetUser[COL.id]);
-        if(error) alert("Error: "+error.message); 
-        else { 
-            alert("✅ Status updated to: " + newStatus); 
-            location.reload(); 
-        }
-    }
-    
-    async function rejectCard() {
-        if(!confirm("Reject this scorecard and return it to the employee for editing?")) return;
-        const { error } = await db.from('active_list').update({ [COL.stat]: 'Returned' }).eq(COL.id, targetUser[COL.id]);
-        if(error) alert("Error: " + error.message);
-        else {
-            alert("Card returned to Employee.");
-            location.reload();
-        }
-    }
-
-    function render(h) { document.getElementById('main-view').innerHTML = h; }
-    
-    function renderNav(r) {
-        let h=''; 
-        if(r === 'Admin' || r === 'Master') h+=`<div class="nav-item" onclick="loadHRAdmin()"><i class="fa-solid fa-user-shield"></i> &nbsp; HR Admin</div>`;
-        if(['Chief','Director','Senior Manager','Manager','Admin','Master'].includes(r)) h+=`<div class="nav-item" onclick="loadReports()"><i class="fa-solid fa-chart-line"></i> &nbsp; Reports</div>`;
-        if(['Chief','Director','Manager','Senior Manager','Admin','Master'].includes(r)) h+=`<div class="nav-item" onclick="loadTeam()"><i class="fa-solid fa-users"></i> &nbsp; My Team</div>`;
-        h+=`<div class="nav-item" onclick="loadEval('${user[COL.id]}')"><i class="fa-solid fa-address-card"></i> &nbsp; Scorecard</div>`;
-        document.getElementById('nav-menu').innerHTML=h;
-    }
-
-    function getRole(u, isManagerByReports) { 
-        if(!u) return 'Staff';
-        const job = (u[COL.job]||"").trim();
-        const cleanJob = job.toLowerCase().replace(/\s+/g, ' ').trim();
-        const cleanMaster = MASTER_ADMIN_TITLE.toLowerCase().replace(/\s+/g, ' ').trim();
-        const roleCol = u[COL.role] || ""; 
-        
-        if(u[COL.id] === 'ZIQ00783') return 'Master';
-        if(cleanJob === cleanMaster) return 'Master';
-        if(roleCol.toLowerCase() === 'admin') return 'Admin';
-        
-        if(isManagerByReports) return 'Manager';
-
-        const l = u[COL.lvl] || "";
-        if(l.includes('L1')) return 'Chief'; if(l.includes('L2')) return 'Director'; 
-        if(l.includes('L3')) return 'Senior Manager'; if(l.includes('L4')) return 'Manager'; 
-        return 'Staff'; 
-    }
-    
-    function getW(l, j) {
-        const job = (j || "").toLowerCase().trim();
-        const levelStr = (l || "").toUpperCase();
-        const is = (role) => new RegExp(`\\b${role}\\b`).test(job);
-
-        if (is('ceo') || job === 'chief executive officer') return { s: 100, i: 0 };
-        if (is('cfo') || job === 'chief financial officer') return { s: 35, i: 65 };
-        if (is('cco') || job === 'chief commercial officer' || is('cto') || job === 'chief technology officer') { return { s: 25, i: 75 }; }
-        if (job.includes('chief')) return { s: 20, i: 80 };
-        if (levelStr.includes('2') && job.includes('director')) return { s: 15, i: 85 };
-        if ((levelStr.includes('3') || levelStr.includes('4')) && (job.includes('manager') || job.includes('head') || job.includes('senior'))) { return { s: 10, i: 90 }; }
-        return { s: 5, i: 95 };
     }
 </script>
 </body>
