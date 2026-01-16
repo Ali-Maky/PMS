@@ -303,27 +303,19 @@
     </style>
 
     <script>
-        // --- 1. CONFIGURATION ---
-        const SUPABASE_URL = 'https://egxtnoapipngiqxxakwt.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVneHRub2FwaXBuZ2lxeHhha3d0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgyMjE1MDgsImV4cCI6MjA4Mzc5NzUwOH0.jwPue3Hl0tJRsh6EEClLztC4ZTCbtpmtFBnOE8h7h9I';
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL_HERE';
+        const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY_HERE';
         
         const IDLE_LIMIT = 3600000;
         const MASTER_ADMIN_TITLE = "Head of Employee Growth and Relation Department";
         const SHARED_GOALS_ID = 'shared_goals_v1';
 
-        // --- HELPER: XSS Sanitization ---
         function escapeHtml(text) {
             if (!text) return text;
             if (typeof text !== 'string') return text;
-            return text
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
         }
 
-        // --- DATA ---
         const defaultIndivGoals = [
             { title: "Functional Objective 1", weight: 0.40, desc: "", rating: 0, targets: ["", "", "", "", "", ""] },
             { title: "Functional Objective 2", weight: 0.30, desc: "", rating: 0, targets: ["", "", "", "", "", ""] },
@@ -341,20 +333,12 @@
         let allCompanyData = [];
         let globalReports = [];
 
-        // --- 2. INIT ---
         window.onload = async function () {
-            if (SUPABASE_URL.includes("YOUR")) {
-                alert("SECURITY ALERT: Please update Supabase Keys in the code!");
-                return;
-            }
+            if (SUPABASE_URL.includes("YOUR")) { alert("Please update Supabase Keys in the code!"); return; }
             db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
             await mapColumns();
             const { data: sg } = await db.from('company_settings').select('data').eq('id', SHARED_GOALS_ID).single();
-            if (sg && sg.data) {
-                if (Array.isArray(sg.data)) masterData = { rating: 0, goals: sg.data }; else masterData = sg.data;
-            } else { masterData = { rating: 0, goals: [] }; }
-
+            if (sg && sg.data) { if (Array.isArray(sg.data)) masterData = { rating: 0, goals: sg.data }; else masterData = sg.data; } else { masterData = { rating: 0, goals: [] }; }
             const uid = localStorage.getItem('zpms_uid');
             if (uid && (Date.now() - localStorage.getItem('zpms_time') < IDLE_LIMIT)) restoreSession(uid);
             else showLogin();
@@ -366,17 +350,14 @@
                 const r = data[0];
                 const keys = Object.keys(r);
                 const findCol = (terms) => keys.find(k => terms.some(t => k.toLowerCase().includes(t.toLowerCase())));
-
                 if (r['Employee Number']) COL.id = 'Employee Number';
                 if (r['Name']) COL.name = 'Name';
                 if (r['Level']) COL.lvl = 'Level';
                 if (r['Job']) COL.job = 'Job';
                 if (r['Division']) COL.div = 'Division';
                 if (r['Department']) COL.dept = 'Department';
-
                 const mgrCol = findCol(['supervisor', 'manager', 'reports to', 'direct manager']);
                 if (mgrCol) COL.mgr = mgrCol;
-
                 const roleCol = findCol(['access_role', 'role', 'permission']);
                 if (roleCol) COL.role = roleCol;
             }
@@ -389,27 +370,18 @@
 
         function showLogin() { document.getElementById('loading-overlay').classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden'); }
         function startIdleTimer() { ['click', 'keydown'].forEach(e => window.addEventListener(e, () => localStorage.setItem('zpms_time', Date.now()))); }
-        function logout() { 
-            localStorage.removeItem('zpms_uid'); 
-            localStorage.removeItem('zpms_time'); 
-            user = null; allCompanyData = []; 
-            location.reload(); 
-        }
+        function logout() { localStorage.removeItem('zpms_uid'); localStorage.removeItem('zpms_time'); user = null; allCompanyData = []; location.reload(); }
 
-        // --- 3. AUTH & ROUTING ---
         async function checkID() {
             const id = escapeHtml(document.getElementById('inp-id').value.trim());
             const btn = document.getElementById('btn-check');
             if (!id) return;
             btn.innerText = "Checking...";
-            
             const { data, error } = await db.from('active_list').select('*').eq(COL.id, id).single();
             if (error || !data) { btn.innerText = "Continue"; document.getElementById('err-id').innerText = "ID not found"; document.getElementById('err-id').style.display = 'block'; return; }
-
             user = data;
             document.getElementById('view-id').classList.add('hidden');
             document.getElementById('view-pass').classList.remove('hidden');
-
             if (!(user[COL.pass] || user['password'])) {
                 isRegistering = true;
                 document.getElementById('lbl-welcome').innerText = "Set Password";
@@ -423,9 +395,7 @@
             if (isRegistering) {
                 if (p1 !== document.getElementById('inp-confirm').value) { alert("Passwords match error"); return; }
                 await db.from('active_list').update({ password: p1 }).eq(COL.id, user[COL.id]);
-            } else {
-                if (p1 !== (user[COL.pass] || user['password'])) { alert("Incorrect Password"); return; }
-            }
+            } else { if (p1 !== (user[COL.pass] || user['password'])) { alert("Incorrect Password"); return; } }
             localStorage.setItem('zpms_uid', user[COL.id]); localStorage.setItem('zpms_time', Date.now());
             startIdleTimer(); launchApp();
         }
@@ -460,65 +430,30 @@
             document.getElementById('app-container').style.display = 'flex';
             document.getElementById('disp-user').innerText = escapeHtml(user[COL.name]);
             document.getElementById('disp-role').innerText = escapeHtml(user[COL.lvl]);
-
             if (allCompanyData.length === 0) {
                 document.getElementById('save-text').innerText = "Syncing directory...";
                 document.getElementById('save-status').classList.add('show');
                 allCompanyData = await fetchAllData();
                 document.getElementById('save-status').classList.remove('show');
             }
-
             let hasReports = false;
             const myId = user[COL.id].toString().toLowerCase();
             const myName = (user[COL.name] || "").toString().toLowerCase();
-
-            hasReports = allCompanyData.some(u => {
-                const m = (u[COL.mgr] || "").toString().toLowerCase();
-                return m.includes(myId) || (myName.length > 3 && m.includes(myName));
-            });
-
+            hasReports = allCompanyData.some(u => { const m = (u[COL.mgr] || "").toString().toLowerCase(); return m.includes(myId) || (myName.length > 3 && m.includes(myName)); });
             const role = getRole(user, hasReports);
             renderNav(role);
-
             if (role === 'Admin' || role === 'Master') loadHRAdmin();
             else if (role === 'Chief' || role === 'Director' || role === 'Senior Manager') loadReports();
             else if (role === 'Manager') loadTeam();
             else loadEval(user[COL.id]);
         }
 
-        // --- DIRECTORY RENDER ---
         function renderDirectoryTable(list) {
-            document.getElementById('dir-tbody').innerHTML = list.map(u => `
-            <tr>
-                <td style="font-weight:700; font-family:monospace; color:var(--primary);">${escapeHtml(u[COL.id])}</td>
-                <td style="font-weight:600;">${escapeHtml(u[COL.name])}</td>
-                <td>${escapeHtml(u[COL.job] || '-')}</td>
-                <td>${escapeHtml(u[COL.div] || '-')}</td>
-                <td>${escapeHtml(u[COL.mgr] || '-')}</td>
-                <td style="text-align:right;">
-                    <button class="btn btn-outline" style="padding:4px 8px; font-size:0.8rem; height:auto;" onclick="openUserModal('${escapeHtml(u[COL.id])}')"><i class="fa-solid fa-pen"></i></button>
-                    <button class="btn btn-outline" style="padding:4px 8px; font-size:0.8rem; height:auto; color:var(--danger); border-color:#fee2e2; background:#fff1f2;" onclick="deleteUser('${escapeHtml(u[COL.id])}')"><i class="fa-solid fa-trash"></i></button>
-                </td>
-            </tr>
-        `).join('');
+            document.getElementById('dir-tbody').innerHTML = list.map(u => `<tr><td style="font-weight:700; font-family:monospace; color:var(--primary);">${escapeHtml(u[COL.id])}</td><td style="font-weight:600;">${escapeHtml(u[COL.name])}</td><td>${escapeHtml(u[COL.job] || '-')}</td><td>${escapeHtml(u[COL.div] || '-')}</td><td>${escapeHtml(u[COL.mgr] || '-')}</td><td style="text-align:right;"><button class="btn btn-outline" style="padding:4px 8px; font-size:0.8rem; height:auto;" onclick="openUserModal('${escapeHtml(u[COL.id])}')"><i class="fa-solid fa-pen"></i></button><button class="btn btn-outline" style="padding:4px 8px; font-size:0.8rem; height:auto; color:var(--danger); border-color:#fee2e2; background:#fff1f2;" onclick="deleteUser('${escapeHtml(u[COL.id])}')"><i class="fa-solid fa-trash"></i></button></td></tr>`).join('');
         }
 
-        // --- ADMIN PORTAL ---
         async function loadHRAdmin() {
-            document.getElementById('main-view').innerHTML = `
-            <div class="animate-in">
-                <div class="header-bar"><div><h2 class="page-title">HR Portal</h2><p class="page-sub">Master Administration & Analytics</p></div></div>
-                <div class="card" style="padding: 10px; display: flex; gap: 10px; overflow-x: auto; margin-bottom: 32px; border-radius: 12px; background: white;">
-                    <div class="admin-tab active" id="tab-shared" onclick="switchAdminTab('shared')"><i class="fa-solid fa-bullseye"></i> &nbsp; Shared Goals</div>
-                    <div class="admin-tab" id="tab-directory" onclick="switchAdminTab('directory')"><i class="fa-solid fa-address-book"></i> &nbsp; Directory</div>
-                    <div class="admin-tab" id="tab-analytics" onclick="switchAdminTab('analytics')"><i class="fa-solid fa-chart-pie"></i> &nbsp; Analytics</div>
-                    <div class="admin-tab" id="tab-app" onclick="switchAdminTab('app')"><i class="fa-solid fa-list-check"></i> &nbsp; Approvals</div>
-                    <div class="admin-tab" id="tab-bulk" onclick="switchAdminTab('bulk')"><i class="fa-solid fa-file-csv"></i> &nbsp; Bulk Import</div>
-                    <div class="admin-tab" id="tab-perm" onclick="switchAdminTab('perm')"><i class="fa-solid fa-shield-halved"></i> &nbsp; Admins</div>
-                    <div class="admin-tab" id="tab-search" onclick="switchAdminTab('search')"><i class="fa-solid fa-magnifying-glass"></i> &nbsp; Search</div>
-                </div>
-                <div id="admin-content" class="animate-in"></div>
-            </div>`;
+            document.getElementById('main-view').innerHTML = `<div class="animate-in"><div class="header-bar"><div><h2 class="page-title">HR Portal</h2><p class="page-sub">Master Administration & Analytics</p></div></div><div class="card" style="padding: 10px; display: flex; gap: 10px; overflow-x: auto; margin-bottom: 32px; border-radius: 12px; background: white;"><div class="admin-tab active" id="tab-shared" onclick="switchAdminTab('shared')"><i class="fa-solid fa-bullseye"></i> &nbsp; Shared Goals</div><div class="admin-tab" id="tab-directory" onclick="switchAdminTab('directory')"><i class="fa-solid fa-address-book"></i> &nbsp; Directory</div><div class="admin-tab" id="tab-analytics" onclick="switchAdminTab('analytics')"><i class="fa-solid fa-chart-pie"></i> &nbsp; Analytics</div><div class="admin-tab" id="tab-app" onclick="switchAdminTab('app')"><i class="fa-solid fa-list-check"></i> &nbsp; Approvals</div><div class="admin-tab" id="tab-bulk" onclick="switchAdminTab('bulk')"><i class="fa-solid fa-file-csv"></i> &nbsp; Bulk Import</div><div class="admin-tab" id="tab-perm" onclick="switchAdminTab('perm')"><i class="fa-solid fa-shield-halved"></i> &nbsp; Admins</div><div class="admin-tab" id="tab-search" onclick="switchAdminTab('search')"><i class="fa-solid fa-magnifying-glass"></i> &nbsp; Search</div></div><div id="admin-content" class="animate-in"></div></div>`;
             switchAdminTab('shared');
         }
 
@@ -536,90 +471,58 @@
 
         function loadAdminSharedGoals() { renderMasterGoals(); }
         function loadAdminDirectory() { 
-            // Reuse existing loadAdminDirectory from prev implementation but abbreviated here for length. 
-            // Re-implementing the DOM structure for Directory:
-            const content = `
-            <div class="animate-in">
-                <div class="card">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
-                        <div><h3 style="margin:0; font-size:1.2rem; font-weight:700;">Employee Directory</h3><p style="color:var(--text-muted); font-size:0.9rem;">Manage system users.</p></div>
-                        <div style="display:flex; gap:12px;">
-                            <button class="btn btn-outline" onclick="document.getElementById('file-users').click()"><i class="fa-solid fa-file-csv"></i> &nbsp; Bulk Import</button>
-                            <button class="btn btn-primary" onclick="openUserModal()"><i class="fa-solid fa-plus"></i> &nbsp; Add Employee</button>
-                        </div>
-                    </div>
-                    <div style="margin-bottom:20px;">
-                        <div class="search-box-container" style="position:relative;">
-                            <i class="fa-solid fa-magnifying-glass" style="position:absolute; left:16px; top:50%; transform:translateY(-50%); color:var(--text-muted);"></i>
-                            <input class="login-input" style="padding-left:42px; margin:0;" placeholder="Search by Name, ID, or Division..." onkeyup="searchDirectory(this.value)">
-                        </div>
-                    </div>
-                    <div style="max-height:600px; overflow-y:auto; border-radius:12px; border:1px solid var(--border);">
-                        <table class="report-table" id="dir-table" style="margin:0;">
-                            <thead><tr><th>ID</th><th>Name</th><th>Job Title</th><th>Division</th><th>Manager</th><th style="text-align:right">Actions</th></tr></thead>
-                            <tbody id="dir-tbody"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>`;
-            document.getElementById('admin-content').innerHTML = content;
+            document.getElementById('admin-content').innerHTML = `<div class="animate-in"><div class="card"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;"><div><h3 style="margin:0; font-size:1.2rem; font-weight:700;">Employee Directory</h3><p style="color:var(--text-muted); font-size:0.9rem;">Manage system users.</p></div><div style="display:flex; gap:12px;"><button class="btn btn-outline" onclick="document.getElementById('file-users').click()"><i class="fa-solid fa-file-csv"></i> &nbsp; Bulk Import</button><button class="btn btn-primary" onclick="openUserModal()"><i class="fa-solid fa-plus"></i> &nbsp; Add Employee</button></div></div><div style="margin-bottom:20px;"><div class="search-box-container" style="position:relative;"><i class="fa-solid fa-magnifying-glass" style="position:absolute; left:16px; top:50%; transform:translateY(-50%); color:var(--text-muted);"></i><input class="login-input" style="padding-left:42px; margin:0;" placeholder="Search by Name, ID, or Division..." onkeyup="searchDirectory(this.value)"></div></div><div style="max-height:600px; overflow-y:auto; border-radius:12px; border:1px solid var(--border);"><table class="report-table" id="dir-table" style="margin:0;"><thead><tr><th>ID</th><th>Name</th><th>Job Title</th><th>Division</th><th>Manager</th><th style="text-align:right">Actions</th></tr></thead><tbody id="dir-tbody"></tbody></table></div></div></div>`;
             renderDirectoryTable(allCompanyData.slice(0, 50)); 
         }
         function loadAdminApprovals() { 
              const divs = [...new Set(allCompanyData.map(i => i[COL.div] || 'Other'))].sort();
-             // Assuming adminCache is populated. If not, fetch it.
-             // For simplicity, fetching here:
              db.from('active_list').select('*').eq(COL.stat, 'Submitted to HR').then(({data}) => {
                  adminCache = data || [];
-                 const h = `
-                <div class="animate-in">
-                    <div class="card">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
-                            <div style="display:flex; gap:16px; align-items:center;">
-                                <h3 style="margin:0; font-size:1.2rem; font-weight:700;">Pending Approvals <span style="background:var(--danger); color:white; padding:2px 8px; border-radius:99px; font-size:0.9rem;">${adminCache.length}</span></h3>
-                                <select id="div-filter" onchange="filterAdminTable()" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border); font-family:inherit;">
-                                    <option value="ALL">All Divisions</option>
-                                    ${divs.map(d => `<option value="${d}">${d}</option>`).join('')}
-                                </select>
-                            </div>
-                            <button class="btn btn-primary" onclick="approveBulk()"><i class="fa-solid fa-check-double"></i> &nbsp; Approve All</button>
-                        </div>
-                        <div style="overflow-x:auto;">
-                            <table class="report-table"><thead><tr><th>Name</th><th>Division</th><th>Job Title</th><th>Manager</th><th style="text-align:right">Action</th></tr></thead><tbody id="admin-tbody"></tbody></table>
-                        </div>
-                    </div>
-                </div>`;
-                document.getElementById('admin-content').innerHTML = h;
-                filterAdminTable();
+                 document.getElementById('admin-content').innerHTML = `<div class="animate-in"><div class="card"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;"><div style="display:flex; gap:16px; align-items:center;"><h3 style="margin:0; font-size:1.2rem; font-weight:700;">Pending Approvals <span style="background:var(--danger); color:white; padding:2px 8px; border-radius:99px; font-size:0.9rem;">${adminCache.length}</span></h3><select id="div-filter" onchange="filterAdminTable()" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border); font-family:inherit;"><option value="ALL">All Divisions</option>${divs.map(d => `<option value="${d}">${d}</option>`).join('')}</select></div><button class="btn btn-primary" onclick="approveBulk()"><i class="fa-solid fa-check-double"></i> &nbsp; Approve All</button></div><div style="overflow-x:auto;"><table class="report-table"><thead><tr><th>Name</th><th>Division</th><th>Job Title</th><th>Manager</th><th style="text-align:right">Action</th></tr></thead><tbody id="admin-tbody"></tbody></table></div></div></div>`;
+                 filterAdminTable();
              });
         }
         function loadAdminSearch() { 
-             document.getElementById('admin-content').innerHTML = `
-            <div class="animate-in">
-                <div class="card" style="max-width:600px; margin:0 auto; padding:32px;">
-                    <div style="text-align:center; margin-bottom:24px;"><h3 style="font-size:1.5rem; margin-bottom:8px;">Global Employee Search</h3><p style="color:var(--text-muted);">Access any employee's scorecard in read-only mode.</p></div>
-                    <div style="display:flex; gap:12px; margin-bottom:32px;">
-                        <input id="search-q" class="login-input" style="margin:0;" placeholder="Enter Name or Employee ID..." onkeypress="if(event.key==='Enter') doGlobalSearch()">
-                        <button class="btn btn-primary" onclick="doGlobalSearch()"><i class="fa-solid fa-magnifying-glass"></i> &nbsp; Search</button>
-                    </div>
-                    <div id="search-results"></div>
-                </div>
-            </div>`;
-        }
-        function loadAdminAnalytics() {
-             document.getElementById('admin-content').innerHTML = `<div class="card"><p>Analytics Module Placeholder</p></div>`;
+             document.getElementById('admin-content').innerHTML = `<div class="animate-in"><div class="card" style="max-width:600px; margin:0 auto; padding:32px;"><div style="text-align:center; margin-bottom:24px;"><h3 style="font-size:1.5rem; margin-bottom:8px;">Global Employee Search</h3><p style="color:var(--text-muted);">Access any employee's scorecard in read-only mode.</p></div><div style="display:flex; gap:12px; margin-bottom:32px;"><input id="search-q" class="login-input" style="margin:0;" placeholder="Enter Name or Employee ID..." onkeypress="if(event.key==='Enter') doGlobalSearch()"><button class="btn btn-primary" onclick="doGlobalSearch()"><i class="fa-solid fa-magnifying-glass"></i> &nbsp; Search</button></div><div id="search-results"></div></div></div>`;
         }
         function loadAdminBulk() {
-             document.getElementById('admin-content').innerHTML = `
-            <div class="card animate-in" style="max-width:600px; margin:0 auto; text-align:center; padding:40px;">
-                <div style="font-size:3rem; color:var(--primary); margin-bottom:24px; background:var(--primary-soft); width:100px; height:100px; line-height:100px; border-radius:50%; margin-left:auto; margin-right:auto;"><i class="fa-solid fa-file-csv"></i></div>
-                <h3 style="margin-bottom:16px;">Bulk Scorecard Import</h3>
-                <p style="color:var(--text-muted); margin-bottom:32px; line-height:1.6;">Upload an Excel file containing goals.</p>
-                <button class="btn btn-primary" onclick="document.getElementById('file-bulk').click()"><i class="fa-solid fa-upload"></i> &nbsp; Select Excel File</button>
-            </div>`;
+             document.getElementById('admin-content').innerHTML = `<div class="card animate-in" style="max-width:600px; margin:0 auto; text-align:center; padding:40px;"><div style="font-size:3rem; color:var(--primary); margin-bottom:24px; background:var(--primary-soft); width:100px; height:100px; line-height:100px; border-radius:50%; margin-left:auto; margin-right:auto;"><i class="fa-solid fa-file-csv"></i></div><h3 style="margin-bottom:16px;">Bulk Scorecard Import</h3><p style="color:var(--text-muted); margin-bottom:32px; line-height:1.6;">Upload an Excel file containing goals.</p><button class="btn btn-primary" onclick="document.getElementById('file-bulk').click()"><i class="fa-solid fa-upload"></i> &nbsp; Select Excel File</button></div>`;
         }
-        function loadAdminPerms() {
-             document.getElementById('admin-content').innerHTML = `<div class="card"><p>Permissions Module Placeholder</p></div>`;
+        
+        async function loadAdminPerms() {
+            const { data: admins } = await db.from('active_list').select('*').eq(COL.role, 'admin');
+            document.getElementById('admin-content').innerHTML = `<div class="animate-in"><div class="card"><h3 style="margin:0 0 8px 0;">Grant Admin Access</h3><div style="display:flex; gap:12px; margin-bottom:32px;"><input id="perm-id" class="login-input" style="margin:0;" placeholder="Employee ID"><button class="btn btn-primary" onclick="grantAdmin()">Grant</button></div><h3 style="margin-bottom:16px;">Current Admins</h3><div style="overflow-x:auto;"><table class="report-table"><thead><tr><th>Name</th><th>Job Title</th><th style="text-align:right">Action</th></tr></thead><tbody>${admins.map(a => `<tr><td style="font-weight:600;">${escapeHtml(a[COL.name])}</td><td>${escapeHtml(a[COL.job])}</td><td style="text-align:right;"><button class="btn btn-outline" style="color:var(--danger); border-color:#fee2e2; background:#fff1f2; padding:6px 12px; font-size:0.8rem;" onclick="revokeAdmin('${escapeHtml(a[COL.id])}')">Revoke</button></td></tr>`).join('')}</tbody></table></div></div></div>`;
+        }
+
+        async function loadAdminAnalytics() {
+            if (allCompanyData.length === 0) allCompanyData = await fetchAllData();
+            const divs = [...new Set(allCompanyData.map(i => i[COL.div] || 'Unknown'))].sort().filter(d => d !== 'Unknown');
+            document.getElementById('admin-content').innerHTML = `<div class="animate-in"><div class="card" style="margin-bottom:24px;"><div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;"><div style="display:flex; align-items:center; gap:16px;"><div><label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px; display:block;">Company</label><select id="anl-comp" onchange="calcAdminStats()" style="padding:8px 32px 8px 12px; border-radius:8px; border:1px solid var(--border); font-family:inherit; font-weight:600;"><option value="ALL">All Companies</option><option value="Zain Iraq">Zain Iraq</option><option value="Horizon">Horizon</option><option value="Next Generation">Next Generation</option></select></div><div><label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px; display:block;">Division</label><select id="anl-filter" onchange="calcAdminStats()" style="padding:8px 32px 8px 12px; border-radius:8px; border:1px solid var(--border); font-family:inherit; font-weight:600; min-width:150px;"><option value="ALL">All Divisions</option>${divs.map(d => `<option value="${d}">${d}</option>`).join('')}</select></div></div><div style="height:40px; width:1px; background:var(--border);"></div><button class="btn btn-outline"><i class="fa-solid fa-file-excel" style="color:#10b981;"></i> &nbsp; Export Report</button></div></div><div class="dash-grid"><div class="card"><h3 style="text-align:center; margin:0 0 24px 0; font-size:1rem; font-weight:700;">Rating Distribution</h3><div style="height:350px;"><canvas id="chartAdmin"></canvas></div></div><div class="card"><h3 style="margin:0 0 24px 0; font-size:1rem; font-weight:700;">Manager Completion</h3><div style="max-height:350px; overflow-y:auto;"><table class="report-table"><thead><tr><th>Manager</th><th>Completed</th><th>Progress</th></tr></thead><tbody id="mgr-tbody"></tbody></table></div></div></div></div>`;
+            calcAdminStats();
+        }
+
+        function calcAdminStats() {
+            const compFilter = document.getElementById('anl-comp').value;
+            const divFilter = document.getElementById('anl-filter').value;
+            let subset = allCompanyData;
+            if (compFilter !== 'ALL') subset = subset.filter(u => getCompany(u[COL.id]) === compFilter);
+            if (divFilter !== 'ALL') subset = subset.filter(u => (u[COL.div] || 'Unknown') === divFilter);
+            
+            let dist = [0, 0, 0, 0, 0, 0];
+            const globalRating = masterData.rating || 0;
+            subset.forEach(u => {
+                let userGoals = u[COL.goals]; if (typeof userGoals === 'string') { try { userGoals = JSON.parse(userGoals); } catch (e) { userGoals = [] } } if (!Array.isArray(userGoals)) userGoals = [];
+                let w = getW(u[COL.lvl], u[COL.job]); let sScore = globalRating * (w.s / 100); let iScore = 0; userGoals.forEach(g => (iScore += (g.rating || 0) * (g.weight || 0)));
+                let total = sScore + (iScore * (w.i / 100));
+                let b = 0; if (total >= 5.5) b = 5; else if (total >= 4.5) b = 4; else if (total >= 3.5) b = 3; else if (total >= 2.5) b = 2; else if (total >= 1.5) b = 1;
+                dist[b]++;
+            });
+            if (chartAdmin) chartAdmin.destroy();
+            chartAdmin = new Chart(document.getElementById('chartAdmin'), { type: 'bar', data: { labels: ["IDLE", "STAGNANT", "WALKER", "RUNNER", "FLYER", "ASTRONAUT"], datasets: [{ label: 'Employees', data: dist, backgroundColor: '#592C82', borderRadius: 4 }] }, options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { display: false } }, x: { grid: { display: false } } } } });
+            
+            let mgrs = {}; subset.forEach(u => { const mId = u[COL.mgr]; if (mId) { if (!mgrs[mId]) { const mObj = allCompanyData.find(x => x[COL.id] == mId); mgrs[mId] = { name: mObj ? mObj[COL.name] : mId, total: 0, done: 0 }; } mgrs[mId].total++; if (u[COL.stat] === 'Submitted to HR' || u[COL.stat] === 'Approved') mgrs[mId].done++; } });
+            let mgrArr = Object.values(mgrs).sort((a, b) => (a.done / a.total) - (b.done / b.total));
+            document.getElementById('mgr-tbody').innerHTML = mgrArr.map(m => { const pct = Math.round((m.done / m.total) * 100); let color = '#ef4444'; if (pct > 50) color = '#f59e0b'; if (pct === 100) color = '#10b981'; return `<tr><td style="font-weight:600; font-size:0.85rem;">${escapeHtml(m.name)}</td><td style="font-size:0.85rem;">${m.done} / ${m.total}</td><td style="vertical-align:middle;"><div class="prog-container"><div class="prog-bar" style="width:${pct}%; background:${color};"></div></div></td></tr>`; }).join('') || '<tr><td colspan="3" style="text-align:center;">No data</td></tr>';
         }
 
         function searchDirectory(q) {
@@ -628,41 +531,13 @@
             renderDirectoryTable(filtered);
         }
 
-        // --- SHARED GOALS RENDER ---
         function renderMasterGoals() {
             const c = document.getElementById('master-goals-list');
-            if(!c) { // if called before shared tab loaded
-                const h = `
-                <div class="animate-in">
-                    <div class="card">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; border-bottom:1px solid var(--border); padding-bottom:24px;">
-                            <div><h3 style="margin:0 0 4px 0; font-size:1.1rem; font-weight:700;">Global Company Rating</h3></div>
-                            <div><select onchange="masterData.rating=parseInt(this.value); renderMasterGoals();" style="padding:10px 16px; border-radius:10px; border:2px solid var(--primary); font-weight:700;"><option value="0">Rating: Pending</option>${[1,2,3,4,5,6].map(n=>`<option value="${n}" ${masterData.rating==n?'selected':''}>${n} - ${ratingLabels[n]}</option>`).join('')}</select></div>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;"><h4 style="margin:0; font-size:1rem; font-weight:700;">Shared Goals & Targets</h4><button class="btn btn-primary" onclick="saveMasterGoals()"><i class="fa-regular fa-floppy-disk"></i> &nbsp; Save & Publish</button></div>
-                        <div id="master-goals-list" style="display:grid; gap:16px;"></div>
-                        <button class="btn btn-outline" style="margin-top:24px; width:100%; justify-content:center; border-style:dashed;" onclick="if(!masterData.goals) masterData.goals=[]; masterData.goals.push({title:'New Goal', targets:Array(6).fill('')}); renderMasterGoals();"><i class="fa-solid fa-plus"></i> &nbsp; Add Goal Item</button>
-                    </div>
-                </div>`;
+            if(!c) { 
+                const h = `<div class="animate-in"><div class="card"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; border-bottom:1px solid var(--border); padding-bottom:24px;"><div><h3 style="margin:0 0 4px 0; font-size:1.1rem; font-weight:700;">Global Company Rating</h3></div><div><select onchange="masterData.rating=parseInt(this.value); renderMasterGoals();" style="padding:10px 16px; border-radius:10px; border:2px solid var(--primary); font-weight:700;"><option value="0">Rating: Pending</option>${[1,2,3,4,5,6].map(n=>`<option value="${n}" ${masterData.rating==n?'selected':''}>${n} - ${ratingLabels[n]}</option>`).join('')}</select></div></div><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;"><h4 style="margin:0; font-size:1rem; font-weight:700;">Shared Goals & Targets</h4><button class="btn btn-primary" onclick="saveMasterGoals()"><i class="fa-regular fa-floppy-disk"></i> &nbsp; Save & Publish</button></div><div id="master-goals-list" style="display:grid; gap:16px;"></div><button class="btn btn-outline" style="margin-top:24px; width:100%; justify-content:center; border-style:dashed;" onclick="if(!masterData.goals) masterData.goals=[]; masterData.goals.push({title:'New Goal', targets:Array(6).fill('')}); renderMasterGoals();"><i class="fa-solid fa-plus"></i> &nbsp; Add Goal Item</button></div></div>`;
                 document.getElementById('admin-content').innerHTML = h;
             }
-            
-            document.getElementById('master-goals-list').innerHTML = (masterData.goals || []).map((g, i) => `
-            <div style="border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:16px; background:#f8fafc;">
-                <div style="display:flex; gap:12px; margin-bottom:12px;">
-                    <input class="login-input" style="margin:0; font-weight:700;" value="${escapeHtml(g.title)}" onchange="masterData.goals[${i}].title=this.value;" placeholder="Goal Title">
-                    <button class="btn-delete" onclick="masterData.goals.splice(${i},1); renderMasterGoals();"><i class="fa-solid fa-trash"></i></button>
-            </div>
-                <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:8px;">
-                    ${(g.targets || Array(6).fill('')).map((t, ti) => {
-                const isSelected = (ti + 1 === (masterData.rating || 0));
-                const styleClass = isSelected ? "active-highlight" : "";
-                return `<input class="target-input ${styleClass}" style="background:white; border:1px solid var(--border); border-radius:6px; padding:8px; font-size:0.8rem;"
-                        value="${escapeHtml(t)}" placeholder="L${ti + 1}" onchange="if(!masterData.goals[${i}].targets) masterData.goals[${i}].targets=[]; masterData.goals[${i}].targets[${ti}]=this.value;">`;
-            }).join('')}
-                </div>
-            </div>
-        `).join('');
+            document.getElementById('master-goals-list').innerHTML = (masterData.goals || []).map((g, i) => `<div style="border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:16px; background:#f8fafc;"><div style="display:flex; gap:12px; margin-bottom:12px;"><input class="login-input" style="margin:0; font-weight:700;" value="${escapeHtml(g.title)}" onchange="masterData.goals[${i}].title=this.value;" placeholder="Goal Title"><button class="btn-delete" onclick="masterData.goals.splice(${i},1); renderMasterGoals();"><i class="fa-solid fa-trash"></i></button></div><div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:8px;">${(g.targets || Array(6).fill('')).map((t, ti) => { const isSelected = (ti + 1 === (masterData.rating || 0)); const styleClass = isSelected ? "active-highlight" : ""; return `<input class="target-input ${styleClass}" style="background:white; border:1px solid var(--border); border-radius:6px; padding:8px; font-size:0.8rem;" value="${escapeHtml(t)}" placeholder="L${ti + 1}" onchange="if(!masterData.goals[${i}].targets) masterData.goals[${i}].targets=[]; masterData.goals[${i}].targets[${ti}]=this.value;">`; }).join('')}</div></div>`).join('');
         }
 
         async function saveMasterGoals() {
@@ -672,23 +547,12 @@
             });
         }
 
-        // --- APPROVALS & SEARCH ---
         function filterAdminTable() {
             const f = document.getElementById('div-filter').value;
             const tbody = document.getElementById('admin-tbody');
             const visible = adminCache.filter(r => f === 'ALL' || (r[COL.div] || 'Other') === f);
             if (visible.length === 0) { tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px;">No pending approvals.</td></tr>`; return; }
-            tbody.innerHTML = visible.map(r => `
-            <tr>
-                <td style="font-weight:600;">${escapeHtml(r[COL.name])}</td>
-                <td>${escapeHtml(r[COL.div] || '-')}</td>
-                <td>${escapeHtml(r[COL.job] || '-')}</td>
-                <td>${escapeHtml(r[COL.mgr] || '-')}</td>
-                <td><div style="display:flex; gap:6px;">
-                    <button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem;" onclick="loadEval('${escapeHtml(r[COL.id])}')">View</button>
-                    <button class="btn btn-primary" style="padding:6px 10px; font-size:0.75rem;" onclick="approveSingle('${escapeHtml(r[COL.id])}')">Approve</button>
-                </div></td>
-            </tr>`).join('');
+            tbody.innerHTML = visible.map(r => `<tr><td style="font-weight:600;">${escapeHtml(r[COL.name])}</td><td>${escapeHtml(r[COL.div] || '-')}</td><td>${escapeHtml(r[COL.job] || '-')}</td><td>${escapeHtml(r[COL.mgr] || '-')}</td><td><div style="display:flex; gap:6px;"><button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem;" onclick="loadEval('${escapeHtml(r[COL.id])}')">View</button><button class="btn btn-primary" style="padding:6px 10px; font-size:0.75rem;" onclick="approveSingle('${escapeHtml(r[COL.id])}')">Approve</button></div></td></tr>`).join('');
         }
 
         async function doGlobalSearch() {
@@ -698,14 +562,11 @@
             document.getElementById('search-results').innerHTML = results.map(r => `<div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid var(--border);"><div><div style="font-weight:700;">${escapeHtml(r[COL.name])}</div><div style="font-size:0.8rem; color:var(--text-muted);">${escapeHtml(r[COL.id])}</div></div><button class="btn btn-outline" style="font-size:0.8rem; padding:6px 12px;" onclick="loadEval('${escapeHtml(r[COL.id])}', true)">View</button></div>`).join('');
         }
 
-        // --- EVALUATION LOGIC ---
         async function loadEval(tid, isSearchMode = false) {
             try {
                 const { data, error } = await db.from('active_list').select('*').eq(COL.id, tid).single();
                 if (error || !data) { alert("Error loading data."); return; }
                 targetUser = data;
-                
-                // Logic vars
                 const uRole = getRole(user);
                 const myId = (user[COL.id] || '').toString();
                 const targetId = (targetUser[COL.id] || '').toString();
@@ -713,33 +574,22 @@
                 const mgrStr = (data[COL.mgr] || "").toString().toLowerCase();
                 isDirectSupervisor = (mgrStr.includes(myId.toLowerCase()));
                 isManager = isDirectSupervisor || (['Admin', 'Master'].includes(uRole) && !viewingSelf);
-                
                 let userGoals = targetUser[COL.goals];
                 if (typeof userGoals === 'string') { try { userGoals = JSON.parse(userGoals); } catch (e) { userGoals = []; } }
                 if (!Array.isArray(userGoals) || userGoals.length === 0) userGoals = JSON.parse(JSON.stringify(defaultIndivGoals));
                 targetUser[COL.goals] = userGoals;
-
                 const stat = data[COL.stat] || 'Draft';
                 let canEdit = (viewingSelf && (stat === 'Draft' || stat === 'Returned')) || (isDirectSupervisor && stat === 'Submitted to Manager') || (['Admin', 'Master'].includes(uRole) && !viewingSelf);
                 if (isSearchMode) canEdit = false;
-
-                // Render Header
                 let h = `<div class="animate-in"><div class="header-bar"><div><h2 class="page-title">${isManager ? 'Evaluation Portal' : 'My Scorecard'}</h2><p class="page-sub"><span style="font-weight:700; color:var(--text-main);">${escapeHtml(data[COL.name])}</span> • <span class="status-badge ${stat==='Approved'?'approved':'submitted'}">${stat}</span></p></div>${isManager?'<button onclick="launchApp()" class="btn btn-outline">Back</button>':''}</div>`;
-                
-                // Render Goals
+                h += `<div class="metrics-row"><div class="metric-card highlight"><div class="metric-val" id="score">0.0</div><div class="metric-lbl">Total Score</div></div></div><div class="info-panel"><div class="info-item"><label>Employee Name</label><div class="info-value">${escapeHtml(data[COL.name])}</div></div><div class="info-item"><label>Job Title</label><div class="info-value">${escapeHtml(data[COL.job] || '-')}</div></div></div>`;
                 h += `<div id="goal-list"></div>`;
-                
-                // Render Footer Actions
                 h += `<div style="margin-top:48px; padding-top:32px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:16px;">`;
-                if(canEdit) {
-                    h += `<button class="btn btn-outline" onclick="saveDraft()"><i class="fa-regular fa-floppy-disk"></i> &nbsp; Save Draft</button>`;
-                    h += `<button class="btn btn-primary" onclick="submitFinal()">Submit</button>`;
-                }
+                if(canEdit) { h += `<button class="btn btn-outline" onclick="saveDraft()"><i class="fa-regular fa-floppy-disk"></i> &nbsp; Save Draft</button>`; h += `<button class="btn btn-primary" onclick="submitFinal()">Submit</button>`; }
                 h += `</div></div>`;
-                
                 document.getElementById('main-view').innerHTML = h;
                 renderGoals(canEdit);
-
+                calc();
             } catch(e) { console.error(e); }
         }
 
@@ -747,30 +597,64 @@
             const stat = targetUser[COL.stat] || 'Draft';
             document.getElementById('goal-list').innerHTML = targetUser[COL.goals].map((g, i) => {
                 let ratingDisplay = `<span class="rating-badge pending"><i class="fa-solid fa-lock"></i> Pending</span>`;
-                if (isDirectSupervisor && edit) {
-                    ratingDisplay = `<select class="rating-select" onchange="updG(${i},'rating',this.value)"><option value="0">Rate...</option>${[1,2,3,4,5,6].map(n=>`<option value="${n}" ${g.rating==n?'selected':''}>${n} - ${ratingLabels[n]}</option>`).join('')}</select>`;
-                } else if (stat === 'Approved' || isManager) {
-                     ratingDisplay = `<span class="rating-badge val">${g.rating ? g.rating + ' - ' + ratingLabels[g.rating] : 'Not Rated'}</span>`;
-                }
-
-                return `<div class="pro-goal-card animate-in">
-                    <div class="pro-goal-header">
-                        <div style="flex:1; font-weight:700;">${escapeHtml(g.title)}</div>
-                        <div class="pro-goal-meta"><div class="pro-weight-badge">${(g.weight*100)}%</div>
-                        ${edit ? `<button class="btn btn-outline" onclick="openGoalModal(${i})"><i class="fa-solid fa-pen"></i></button><button class="btn btn-outline" style="color:red;" onclick="delG(${i})"><i class="fa-solid fa-trash"></i></button>` : ''}
-                        </div>
-                    </div>
-                    <div class="pro-goal-desc">${escapeHtml(g.desc || '')}</div>
-                    <div class="pro-targets-container">
-                        ${['IDLE','STAGNANT','WALKER','RUNNER','FLYER','ASTRONAUT'].map((lh, li) => 
-                        `<div class="pro-target-item ${li===3?'is-target':''}"><div class="pro-target-header">${lh}</div><div class="pro-target-val" style="padding:8px; text-align:center;">${escapeHtml((g.targets||[])[li]||'-')}</div></div>`).join('')}
-                    </div>
-                    <div class="pro-goal-footer">${ratingDisplay}</div>
-                </div>`;
+                if (isDirectSupervisor && edit) { ratingDisplay = `<select class="rating-select" onchange="updG(${i},'rating',this.value)"><option value="0">Rate...</option>${[1,2,3,4,5,6].map(n=>`<option value="${n}" ${g.rating==n?'selected':''}>${n} - ${ratingLabels[n]}</option>`).join('')}</select>`; } 
+                else if (stat === 'Approved' || isManager) { ratingDisplay = `<span class="rating-badge val">${g.rating ? g.rating + ' - ' + ratingLabels[g.rating] : 'Not Rated'}</span>`; }
+                return `<div class="pro-goal-card animate-in"><div class="pro-goal-header"><div style="flex:1; font-weight:700;">${escapeHtml(g.title)}</div><div class="pro-goal-meta"><div class="pro-weight-badge">${(g.weight*100)}%</div>${edit ? `<button class="btn btn-outline" onclick="openGoalModal(${i})"><i class="fa-solid fa-pen"></i></button><button class="btn btn-outline" style="color:red;" onclick="delG(${i})"><i class="fa-solid fa-trash"></i></button>` : ''}</div></div><div class="pro-goal-desc">${escapeHtml(g.desc || '')}</div><div class="pro-targets-container">${['IDLE','STAGNANT','WALKER','RUNNER','FLYER','ASTRONAUT'].map((lh, li) => `<div class="pro-target-item ${li===3?'is-target':''}"><div class="pro-target-header">${lh}</div><div class="pro-target-val" style="padding:8px; text-align:center;">${escapeHtml((g.targets||[])[li]||'-')}</div></div>`).join('')}</div><div class="pro-goal-footer">${ratingDisplay}</div></div>`;
             }).join('');
         }
 
-        // --- CRUD ACTIONS ---
+        async function loadTeam() {
+            const myId = user[COL.id];
+            const myName = user[COL.name];
+            let filter = `${COL.mgr}.ilike.%${myId}%`;
+            if (myName) filter += `,${COL.mgr}.ilike.%${myName}%`;
+            const { data } = await db.from('active_list').select('*').or(filter);
+            let h = `<div class="animate-in"><div class="header-bar"><div><h2 class="page-title">My Team</h2><p class="page-sub">Direct Reports & Scorecards</p></div></div><div class="team-grid">`;
+            if (data && data.length > 0) {
+                data.forEach(e => {
+                    let statClass = e[COL.stat] === 'Approved' ? 'approved' : (e[COL.stat] === 'Submitted' ? 'submitted' : 'draft');
+                    h += `<div class="premium-team-card" onclick="loadEval('${e[COL.id]}')"><div class="pt-status status-badge ${statClass}">${e[COL.stat] || 'Draft'}</div><div class="pt-avatar">${e[COL.name].charAt(0)}</div><div class="pt-info"><div class="pt-name">${escapeHtml(e[COL.name])}</div><div class="pt-role">${escapeHtml(e[COL.job] || 'Staff')}</div><div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">${escapeHtml(e[COL.id])}</div></div><div style="border-top:1px solid var(--border); padding-top:16px; display:flex; justify-content:center;"><button class="btn btn-outline" style="width:100%; justify-content:center; font-size:0.9rem;">View Scorecard</button></div></div>`;
+                });
+            } else { h += `<div class="empty-state-message">No direct reports found.</div>`; }
+            h += `</div></div>`;
+            document.getElementById('main-view').innerHTML = h;
+        }
+
+        async function loadReports() {
+            if (allCompanyData.length === 0) allCompanyData = await fetchAllData();
+            const myId = user[COL.id].toString().toLowerCase();
+            let directReports = allCompanyData.filter(u => { const m = (u[COL.mgr] || "").toString().toLowerCase(); return m.includes(myId); });
+            if (!directReports || directReports.length === 0) { document.getElementById('main-view').innerHTML = '<div class="card"><p>No reports data found.</p></div>'; return; }
+            let h = `<div class="animate-in"><div class="header-bar"><div><h2 class="page-title">Leadership Reports</h2></div></div><div class="card"><h3 style="text-align:center; font-size:1rem; font-weight:700; margin-bottom:20px;">Direct Reports (${directReports.length})</h3><div style="height:350px;"><canvas id="chartDirect"></canvas></div></div></div>`;
+            document.getElementById('main-view').innerHTML = h;
+            
+            let dist = [0, 0, 0, 0, 0, 0];
+            const globalRating = masterData.rating || 0;
+            directReports.forEach(u => {
+                let userGoals = u[COL.goals] || []; if (typeof userGoals === 'string') { try { userGoals = JSON.parse(userGoals); } catch (e) { userGoals = [] } }
+                let w = getW(u[COL.lvl], u[COL.job]); let sScore = globalRating * (w.s / 100); let iScore = 0; userGoals.forEach(g => (iScore += (g.rating || 0) * (g.weight || 0)));
+                let total = sScore + (iScore * (w.i / 100));
+                let b = 0; if (total >= 5.5) b = 5; else if (total >= 4.5) b = 4; else if (total >= 3.5) b = 3; else if (total >= 2.5) b = 2; else if (total >= 1.5) b = 1;
+                dist[b]++;
+            });
+            if (chart1) chart1.destroy();
+            chart1 = new Chart(document.getElementById('chartDirect'), { type: 'bar', data: { labels: ["IDLE", "STAGNANT", "WALKER", "RUNNER", "FLYER", "ASTRONAUT"], datasets: [{ label: 'Direct Reports', data: dist, backgroundColor: '#592C82', borderRadius: 4 }] }, options: { maintainAspectRatio: false } });
+        }
+
+        function getDownstream(rootId, allData) {
+            let subordinates = [];
+            let queue = [rootId.toString().toLowerCase()];
+            let visited = new Set();
+            while (queue.length > 0) {
+                let currentId = queue.shift();
+                if (visited.has(currentId)) continue;
+                visited.add(currentId);
+                let direct = allData.filter(u => (u[COL.mgr]||"").toString().toLowerCase().includes(currentId));
+                direct.forEach(d => { subordinates.push(d); queue.push(d[COL.id].toString().toLowerCase()); });
+            }
+            return subordinates;
+        }
+
         function updG(i, f, v) { if (f === 'rating') v = parseInt(v); targetUser[COL.goals][i][f] = v; autoSave(); }
         async function delG(i) { if (confirm("Delete goal?")) { targetUser[COL.goals].splice(i, 1); renderGoals(true); autoSave(); } }
         function autoSave() { clearTimeout(saveTimer); saveTimer = setTimeout(async () => { let u = {}; u[COL.goals] = targetUser[COL.goals]; await db.from('active_list').update(u).eq(COL.id, targetUser[COL.id]); }, 500); }
@@ -785,7 +669,6 @@
         async function approveSingle(id) { await db.from('active_list').update({[COL.stat]: 'Approved'}).eq(COL.id, id); loadAdminApprovals(); }
         async function approveBulk() { const ids = adminCache.map(r=>r[COL.id]); await db.from('active_list').update({[COL.stat]: 'Approved'}).in(COL.id, ids); loadAdminApprovals(); }
         
-        // --- MODALS ---
         function openGoalModal(index = null) {
             editingGoalIndex = index;
             document.getElementById('goal-modal').style.display = 'flex';
@@ -794,21 +677,20 @@
                  const g = targetUser[COL.goals][index];
                  document.getElementById('gm-title-inp').value = g.title;
                  document.getElementById('gm-weight').value = g.weight * 100;
-                 // ... populate rest
+                 document.getElementById('gm-desc').value = g.desc || '';
             }
         }
         function closeGoalModal() { document.getElementById('goal-modal').classList.remove('open'); setTimeout(() => document.getElementById('goal-modal').style.display = 'none', 300); }
         function saveGoal() {
              const title = document.getElementById('gm-title-inp').value;
              const weight = parseFloat(document.getElementById('gm-weight').value)/100;
-             const newG = { title, weight, targets: Array.from(document.querySelectorAll('.gm-target-inp')).map(i=>i.value), desc: document.getElementById('gm-desc').value };
+             const newG = { title, weight, targets: Array.from(document.querySelectorAll('.gm-target-inp')).map(i=>i.value), desc: document.getElementById('gm-desc').value, rating: 0 };
              if(editingGoalIndex!==null) targetUser[COL.goals][editingGoalIndex] = newG;
              else targetUser[COL.goals].push(newG);
              closeGoalModal(); renderGoals(true); autoSave();
         }
         let editingGoalIndex = null;
 
-        // --- HELPERS ---
         function showToast(msg, type='success') {
             const t = document.createElement('div'); t.className = `toast ${type}`; t.innerHTML = msg; document.getElementById('toast-container').appendChild(t);
             requestAnimationFrame(() => t.classList.add('show')); setTimeout(() => t.remove(), 3000);
@@ -818,46 +700,66 @@
         function closeConfirm() { document.getElementById('confirm-overlay').classList.remove('open'); setTimeout(()=>document.getElementById('confirm-overlay').style.display='none', 300); }
         function doConfirm() { if(confirmCallback) confirmCallback(); closeConfirm(); }
         
-        // Missing Impl Placeholders
         function triggerImport() { document.getElementById('file-import').click(); }
-        function processFile() { alert("File processing logic here"); } 
-        function processBulkImport() { alert("Bulk logic here"); }
-        function processUserBulkImport() { alert("User bulk logic here"); }
+        function processFile(inp) {
+            const file = inp.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                const newGoals = json.map(r => ({ title: r['Objective']||'Imported', weight: (parseFloat(r['Weight'])||0)/100, desc: r['Desc'], targets: [r['L1'],r['L2'],r['L3'],r['L4'],r['L5'],r['L6']] }));
+                targetUser[COL.goals] = newGoals; renderGoals(true); autoSave();
+            };
+            reader.readAsArrayBuffer(file);
+        }
+        function processBulkImport(inp) { alert("Use template: ID, Objective, Weight..."); }
+        function processUserBulkImport(inp) { alert("Use template: ID, Name, Job, Division..."); }
         async function deleteUser(id) { if(confirm("Delete?")) { await db.from('active_list').delete().eq(COL.id, id); loadAdminDirectory(); } }
+        async function grantAdmin() { const id = document.getElementById('perm-id').value; await db.from('active_list').update({[COL.role]:'admin'}).eq(COL.id, id); loadAdminPerms(); }
+        async function revokeAdmin(id) { await db.from('active_list').update({[COL.role]:null}).eq(COL.id, id); loadAdminPerms(); }
         
         function getRole(u, isManagerByReports) {
             if (!u) return 'Staff';
             const job = (u[COL.job] || "").toLowerCase();
             const roleCol = (u[COL.role] || "").toLowerCase();
-            if (roleCol === 'admin') return 'Admin';
+            if (roleCol === 'admin' || roleCol === 'master') return 'Admin';
             if (u[COL.id] === 'ZIQ00783') return 'Master';
             if (isManagerByReports) return 'Manager';
             if (job.includes('chief')) return 'Chief';
             return 'Staff';
         }
 
+        function getW(l, j) {
+            const job = (j || "").toLowerCase().trim();
+            const levelStr = (l || "").toUpperCase();
+            if (job === 'ceo') return { s: 100, i: 0 };
+            if (job.includes('chief')) return { s: 20, i: 80 };
+            return { s: 10, i: 90 };
+        }
+
+        function calc() {
+            if (!targetUser) return;
+            const w = getW(targetUser[COL.lvl], targetUser[COL.job]);
+            const globalRating = masterData.rating || 0;
+            const sScore = globalRating * (w.s / 100);
+            let iScore = 0;
+            if (targetUser[COL.goals]) { targetUser[COL.goals].forEach(g => iScore += (g.rating || 0) * (g.weight || 0)); }
+            const total = sScore + (iScore * (w.i / 100));
+            document.getElementById('score').innerText = total.toFixed(2);
+        }
+
         function renderNav(r) {
             let h = '';
             const mkItem = (lbl, icon, fn) => `<div class="nav-item COMP-NAV" onclick="setActiveNav(this); ${fn}"><i class="${icon}"></i> <span>${lbl}</span></div>`;
             const mkSec = (lbl) => `<div style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; padding:16px 12px 8px 12px; margin-top:8px;">${lbl}</div>`;
-
-            if (r === 'Admin' || r === 'Master') {
-                h += mkSec('Administration');
-                h += mkItem('HR Admin', 'fa-solid fa-user-shield', 'loadHRAdmin()');
-            }
-            if (['Chief', 'Director', 'Senior Manager', 'Manager', 'Admin', 'Master'].includes(r)) {
-                h += mkSec('Management');
-                h += mkItem('My Team', 'fa-solid fa-users', 'loadTeam()');
-            }
-            h += mkSec('Personal');
-            h += mkItem('My Scorecard', 'fa-solid fa-address-card', `loadEval('${escapeHtml(user[COL.id])}')`);
+            if (r === 'Admin' || r === 'Master') { h += mkSec('Administration'); h += mkItem('HR Admin', 'fa-solid fa-user-shield', 'loadHRAdmin()'); }
+            if (['Chief', 'Director', 'Senior Manager', 'Manager', 'Admin', 'Master'].includes(r)) { h += mkSec('Management'); h += mkItem('My Team', 'fa-solid fa-users', 'loadTeam()'); h += mkItem('Reports', 'fa-solid fa-chart-line', 'loadReports()'); }
+            h += mkSec('Personal'); h += mkItem('My Scorecard', 'fa-solid fa-address-card', `loadEval('${escapeHtml(user[COL.id])}')`);
             document.getElementById('nav-menu').innerHTML = h;
         }
         function setActiveNav(el) { document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active')); el.classList.add('active'); }
-        function loadTeam() { document.getElementById('main-view').innerHTML = '<div class="card"><p>Team View Placeholder</p></div>'; } 
-        function loadReports() { document.getElementById('main-view').innerHTML = '<div class="card"><p>Reports View Placeholder</p></div>'; }
 
-        // --- ADMIN HELPERS ---
         function openUserModal(id) { 
              document.getElementById('user-modal').style.display='flex'; 
              setTimeout(()=>document.getElementById('user-modal').classList.add('open'), 10); 
@@ -869,7 +771,6 @@
              await db.from('active_list').upsert(u); 
              closeUserModal(); loadAdminDirectory(); 
         }
-
     </script>
 </body>
 </html>
