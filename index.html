@@ -319,6 +319,15 @@
         return allRows;
     }
 
+    function getCompany(id) {
+        if(!id) return "Unknown";
+        const clean = id.toString().toUpperCase().trim();
+        if(clean.startsWith("ZIQ")) return "Zain Iraq";
+        if(clean.startsWith("HISP")) return "Horizon";
+        if(clean.startsWith("NG")) return "Next Generation";
+        return "Other";
+    }
+
     async function launchApp() {
         document.getElementById('loading-overlay').classList.add('hidden');
         document.getElementById('login-screen').classList.add('hidden');
@@ -676,9 +685,18 @@
             <div style="display:flex; justify-content:flex-end; align-items:center; gap:12px;">
                 <button class="btn btn-outline" onclick="downloadAdminReport()"><i class="fa-solid fa-file-excel"></i> &nbsp; Export Report</button>
                 <div style="width:1px; height:24px; background:var(--border); margin:0 8px;"></div>
-                <label style="font-weight:600; font-size:0.9rem;">Filter by Division:</label>
+                
+                <label style="font-weight:600; font-size:0.9rem;">Company:</label>
+                <select id="anl-comp" onchange="updateDivisions(); calcAdminStats()" style="padding:8px 16px; border-radius:8px; border:1px solid var(--border); font-family:inherit;">
+                    <option value="ALL">All Companies</option>
+                    <option value="Zain Iraq">Zain Iraq</option>
+                    <option value="Horizon">Horizon</option>
+                    <option value="Next Generation">Next Generation</option>
+                </select>
+
+                <label style="font-weight:600; font-size:0.9rem;">Division:</label>
                 <select id="anl-filter" onchange="calcAdminStats()" style="padding:8px 16px; border-radius:8px; border:1px solid var(--border); font-family:inherit;">
-                    <option value="ALL">All Company</option>
+                    <option value="ALL">All Divisions</option>
                     ${divs.map(d=>`<option value="${d}">${d}</option>`).join('')}
                 </select>
             </div>
@@ -687,10 +705,33 @@
         document.getElementById('admin-content').innerHTML = h;
         calcAdminStats();
     }
+
+    function updateDivisions() {
+        const selectedComp = document.getElementById('anl-comp').value;
+        let subset = allCompanyData;
+        
+        if (selectedComp !== 'ALL') {
+            subset = allCompanyData.filter(u => getCompany(u[COL.id]) === selectedComp);
+        }
+        
+        const divs = [...new Set(subset.map(i => i[COL.div] || 'Unknown'))].sort().filter(d => d !== 'Unknown');
+        
+        const divSelect = document.getElementById('anl-filter');
+        divSelect.innerHTML = `<option value="ALL">All Divisions</option>` + divs.map(d => `<option value="${d}">${d}</option>`).join('');
+    }
     
     function downloadAdminReport() {
-        const filter = document.getElementById('anl-filter').value;
-        const subset = (filter === 'ALL') ? allCompanyData : allCompanyData.filter(u => (u[COL.div]||'Unknown') === filter);
+        const compFilter = document.getElementById('anl-comp').value;
+        const divFilter = document.getElementById('anl-filter').value;
+        
+        let subset = allCompanyData;
+        
+        if (compFilter !== 'ALL') {
+            subset = subset.filter(u => getCompany(u[COL.id]) === compFilter);
+        }
+        if (divFilter !== 'ALL') {
+            subset = subset.filter(u => (u[COL.div]||'Unknown') === divFilter);
+        }
         
         if(subset.length === 0) { alert("No data to export."); return; }
 
@@ -719,6 +760,7 @@
             return {
                 "Employee ID": u[COL.id],
                 "Name": u[COL.name],
+                "Company": getCompany(u[COL.id]),
                 "Division": u[COL.div] || "-",
                 "Department": u[COL.dept] || "-",
                 "Supervisor": u[COL.mgr] || "-",
@@ -731,12 +773,25 @@
         const ws = XLSX.utils.json_to_sheet(rows);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Evaluation Report");
-        XLSX.writeFile(wb, `Zain_PMS_Report_${filter}_${new Date().toISOString().slice(0,10)}.xlsx`);
+        XLSX.writeFile(wb, `Zain_PMS_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
     }
 
     function calcAdminStats() {
-        const filter = document.getElementById('anl-filter').value;
-        const subset = (filter === 'ALL') ? allCompanyData : allCompanyData.filter(u => (u[COL.div]||'Unknown') === filter);
+        const compFilter = document.getElementById('anl-comp').value;
+        const divFilter = document.getElementById('anl-filter').value;
+        
+        let subset = allCompanyData;
+        
+        // Filter by Company
+        if (compFilter !== 'ALL') {
+            subset = subset.filter(u => getCompany(u[COL.id]) === compFilter);
+        }
+        
+        // Filter by Division
+        if (divFilter !== 'ALL') {
+            subset = subset.filter(u => (u[COL.div]||'Unknown') === divFilter);
+        }
+
         let dist = [0,0,0,0,0,0];
         const globalRating = masterData.rating || 0; 
 
