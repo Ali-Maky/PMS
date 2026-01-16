@@ -137,6 +137,12 @@
         
         .target-input.active-highlight { border: 2px solid var(--primary) !important; background: var(--primary-soft) !important; color: var(--primary); font-weight: 700; }
         .draft-badge { background:#fef3c7; color:#d97706; padding:6px 12px; border-radius:20px; font-size:0.8rem; font-weight:700; display:inline-flex; align-items:center; gap:6px; border:1px solid #fcd34d; }
+        
+        /* Modal Styles */
+        #modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:4000; display:flex; justify-content:center; align-items:center; opacity:0; pointer-events:none; transition:0.3s; }
+        #modal-overlay.open { opacity:1; pointer-events:all; }
+        .modal-card { background:white; width:500px; padding:30px; border-radius:16px; transform:translateY(20px); transition:0.3s; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); max-height:90vh; overflow-y:auto; }
+        #modal-overlay.open .modal-card { transform:translateY(0); }
     </style>
 </head>
 <body>
@@ -149,6 +155,51 @@
 <div id="save-status">
     <div class="save-dot" id="save-dot"></div>
     <span id="save-text">All changes saved</span>
+</div>
+
+<div id="modal-overlay">
+    <div class="modal-card">
+        <h3 id="modal-title" style="margin-top:0;">Add Employee</h3>
+        <input type="hidden" id="edit-mode-id">
+        <div style="margin-bottom:15px;">
+            <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted);">Employee ID</label>
+            <input id="u-id" class="login-input" placeholder="ZIQ...">
+        </div>
+        <div style="margin-bottom:15px;">
+            <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted);">Full Name</label>
+            <input id="u-name" class="login-input" placeholder="John Doe">
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:15px;">
+            <div>
+                <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted);">Level</label>
+                <input id="u-lvl" class="login-input" placeholder="L4 Manager">
+            </div>
+            <div>
+                <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted);">Job Title</label>
+                <input id="u-job" class="login-input" placeholder="Software Engineer">
+            </div>
+        </div>
+        <div style="margin-bottom:15px;">
+            <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted);">Division</label>
+            <input id="u-div" class="login-input" placeholder="Technology">
+        </div>
+        <div style="margin-bottom:15px;">
+            <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted);">Department</label>
+            <input id="u-dept" class="login-input" placeholder="IT Development">
+        </div>
+        <div style="margin-bottom:15px;">
+            <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted);">Manager ID</label>
+            <input id="u-mgr" class="login-input" placeholder="Manager ID or Name">
+        </div>
+        <div style="margin-bottom:25px;">
+            <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted);">Password (Optional)</label>
+            <input id="u-pass" type="password" class="login-input" placeholder="Set new password...">
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+            <button class="btn btn-outline" onclick="closeUserModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveUser()">Save Employee</button>
+        </div>
+    </div>
 </div>
 
 <div id="login-screen" class="hidden">
@@ -195,6 +246,7 @@
     <main class="main-content" id="main-view"></main>
     <input type="file" id="file-import" hidden accept=".xlsx, .xls, .csv" onchange="processFile(this)">
     <input type="file" id="file-bulk" hidden accept=".xlsx, .xls, .csv" onchange="processBulkImport(this)">
+    <input type="file" id="file-users" hidden accept=".xlsx, .xls, .csv" onchange="processUserBulkImport(this)">
 </div>
 
 <script>
@@ -415,6 +467,7 @@
             </div>
             <div style="display:flex; gap:20px; border-bottom:1px solid var(--border); margin-bottom:24px;">
                 <div class="admin-tab active" id="tab-shared" onclick="switchAdminTab('shared')">Shared Goals</div>
+                <div class="admin-tab" id="tab-directory" onclick="switchAdminTab('directory')">Directory</div>
                 <div class="admin-tab" id="tab-analytics" onclick="switchAdminTab('analytics')">Analytics</div>
                 <div class="admin-tab" id="tab-app" onclick="switchAdminTab('app')">Approvals</div>
                 <div class="admin-tab" id="tab-bulk" onclick="switchAdminTab('bulk')">Bulk Import</div>
@@ -430,6 +483,7 @@
         document.querySelectorAll('.admin-tab').forEach(e=>e.classList.remove('active'));
         document.getElementById('tab-'+t).classList.add('active');
         if(t==='shared') loadAdminSharedGoals();
+        else if(t==='directory') loadAdminDirectory();
         else if(t==='app') loadAdminApprovals(); 
         else if(t==='search') loadAdminSearch();
         else if(t==='analytics') loadAdminAnalytics();
@@ -437,7 +491,175 @@
         else if(t==='perm') loadAdminPerms();
     }
 
-    // --- BULK IMPORT ---
+    // --- DIRECTORY TAB (ADD/EDIT/DELETE USERS) ---
+    async function loadAdminDirectory() {
+        if(allCompanyData.length === 0) allCompanyData = await fetchAllData();
+        const content = `
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                    <h3>Employee Directory</h3>
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn btn-outline" onclick="document.getElementById('file-users').click()"><i class="fa-solid fa-file-csv"></i> &nbsp; Bulk Import Users</button>
+                        <button class="btn btn-primary" onclick="openUserModal()"><i class="fa-solid fa-plus"></i> &nbsp; Add Employee</button>
+                    </div>
+                </div>
+                <div style="margin-bottom:15px;">
+                    <input class="login-input" placeholder="Search by name or ID..." onkeyup="searchDirectory(this.value)">
+                </div>
+                <div style="max-height:500px; overflow-y:auto;">
+                    <table class="report-table" id="dir-table">
+                        <thead><tr><th>ID</th><th>Name</th><th>Job</th><th>Division</th><th>Manager</th><th>Actions</th></tr></thead>
+                        <tbody id="dir-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+        document.getElementById('admin-content').innerHTML = content;
+        renderDirectoryTable(allCompanyData.slice(0, 50)); // Initial render
+    }
+
+    function searchDirectory(q) {
+        q = q.toLowerCase();
+        const filtered = allCompanyData.filter(u => 
+            (u[COL.id]||"").toLowerCase().includes(q) || 
+            (u[COL.name]||"").toLowerCase().includes(q)
+        ).slice(0, 50);
+        renderDirectoryTable(filtered);
+    }
+
+    function renderDirectoryTable(list) {
+        document.getElementById('dir-tbody').innerHTML = list.map(u => `
+            <tr>
+                <td style="font-weight:700;">${u[COL.id]}</td>
+                <td>${u[COL.name]}</td>
+                <td>${u[COL.job] || '-'}</td>
+                <td>${u[COL.div] || '-'}</td>
+                <td>${u[COL.mgr] || '-'}</td>
+                <td>
+                    <button class="btn btn-outline" style="padding:4px 8px; font-size:0.75rem;" onclick="openUserModal('${u[COL.id]}')"><i class="fa-solid fa-pen"></i></button>
+                    <button class="btn btn-outline" style="padding:4px 8px; font-size:0.75rem; color:var(--danger); border-color:#fee2e2;" onclick="deleteUser('${u[COL.id]}')"><i class="fa-solid fa-trash"></i></button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    // Modal Functions
+    function openUserModal(id = null) {
+        document.getElementById('modal-overlay').classList.add('open');
+        document.getElementById('edit-mode-id').value = id || "";
+        document.getElementById('modal-title').innerText = id ? "Edit Employee" : "Add Employee";
+        
+        if (id) {
+            const u = allCompanyData.find(x => x[COL.id] == id);
+            if(u) {
+                document.getElementById('u-id').value = u[COL.id];
+                document.getElementById('u-id').readOnly = true; // Cannot change ID in edit
+                document.getElementById('u-name').value = u[COL.name];
+                document.getElementById('u-lvl').value = u[COL.lvl] || "";
+                document.getElementById('u-job').value = u[COL.job] || "";
+                document.getElementById('u-div').value = u[COL.div] || "";
+                document.getElementById('u-dept').value = u[COL.dept] || "";
+                document.getElementById('u-mgr').value = u[COL.mgr] || "";
+                document.getElementById('u-pass').value = ""; // Don't show old password
+            }
+        } else {
+            document.querySelectorAll('#modal-overlay input').forEach(i => { if(i.type!='hidden') i.value = ""; i.readOnly = false; });
+        }
+    }
+
+    function closeUserModal() {
+        document.getElementById('modal-overlay').classList.remove('open');
+    }
+
+    async function saveUser() {
+        const isEdit = !!document.getElementById('edit-mode-id').value;
+        const uId = document.getElementById('u-id').value.trim();
+        const uName = document.getElementById('u-name').value.trim();
+        
+        if(!uId || !uName) { alert("ID and Name are required."); return; }
+
+        const payload = {
+            [COL.id]: uId,
+            [COL.name]: uName,
+            [COL.lvl]: document.getElementById('u-lvl').value.trim(),
+            [COL.job]: document.getElementById('u-job').value.trim(),
+            [COL.div]: document.getElementById('u-div').value.trim(),
+            [COL.dept]: document.getElementById('u-dept').value.trim(),
+            [COL.mgr]: document.getElementById('u-mgr').value.trim()
+        };
+
+        const pass = document.getElementById('u-pass').value;
+        if(pass) payload['password'] = pass;
+
+        // Using Upsert for both Add and Edit
+        const { error } = await db.from('active_list').upsert(payload);
+
+        if(error) {
+            alert("Error saving user: " + error.message);
+        } else {
+            alert("User saved successfully!");
+            closeUserModal();
+            // Refresh local data
+            allCompanyData = await fetchAllData();
+            loadAdminDirectory();
+        }
+    }
+
+    async function deleteUser(id) {
+        if(!confirm(`Are you sure you want to delete employee ${id}? This cannot be undone.`)) return;
+        
+        const { error } = await db.from('active_list').delete().eq(COL.id, id);
+        if(error) {
+            alert("Error deleting user: " + error.message);
+        } else {
+            alert("User deleted.");
+            allCompanyData = allCompanyData.filter(x => x[COL.id] !== id);
+            loadAdminDirectory();
+        }
+    }
+
+    function processUserBulkImport(inp) {
+        const file = inp.files[0]; if(!file) return;
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type:'array'});
+                const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                if(json.length === 0) { alert("Empty file"); return; }
+
+                if(!confirm(`Ready to import ${json.length} users? This will update existing IDs and add new ones.`)) return;
+
+                showSaving();
+                const updates = json.map(r => {
+                    return {
+                        [COL.id]: r['Employee Number'] || r['ID'],
+                        [COL.name]: r['Name'] || r['Full Name'],
+                        [COL.lvl]: r['Level'] || "",
+                        [COL.job]: r['Job'] || r['Title'],
+                        [COL.div]: r['Division'] || "",
+                        [COL.dept]: r['Department'] || "",
+                        [COL.mgr]: r['Manager'] || r['Manager ID'] || ""
+                    };
+                }).filter(x => x[COL.id]); // Ensure ID exists
+
+                // Batch upsert
+                const { error } = await db.from('active_list').upsert(updates);
+                
+                if(error) alert("Import Error: " + error.message);
+                else {
+                    alert("Import Successful!");
+                    allCompanyData = await fetchAllData();
+                    loadAdminDirectory();
+                }
+                showSaved();
+                inp.value = '';
+            } catch(err) { console.error(err); alert("Error processing file."); }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    // --- BULK IMPORT (SCORECARDS) ---
     function loadAdminBulk() {
         document.getElementById('admin-content').innerHTML = `
             <div class="card" style="max-width:600px; margin:0 auto; text-align:center;">
