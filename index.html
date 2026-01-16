@@ -782,12 +782,10 @@
         
         let subset = allCompanyData;
         
-        // Filter by Company
         if (compFilter !== 'ALL') {
             subset = subset.filter(u => getCompany(u[COL.id]) === compFilter);
         }
         
-        // Filter by Division
         if (divFilter !== 'ALL') {
             subset = subset.filter(u => (u[COL.div]||'Unknown') === divFilter);
         }
@@ -948,6 +946,7 @@
         if (showOrgChart) {
              const uniqueDivs = [...new Set(globalReports.map(u => (u[COL.div]||"").trim()).filter(Boolean))].sort();
              
+             // Initial Manager Map (Full List)
              const mgrMap = new Map();
              globalReports.forEach(u => {
                  let rawM = (u[COL.mgr] || "").toString();
@@ -963,7 +962,7 @@
 
              filterHtml = `
              <div style="display:flex; justify-content:flex-end; gap:10px; margin-bottom:10px;">
-                <select id="org-filter-div" onchange="updateOrgChart()" style="padding:6px; border-radius:8px; border:1px solid var(--border); font-size:0.8rem;">
+                <select id="org-filter-div" onchange="filterManagersByDiv()" style="padding:6px; border-radius:8px; border:1px solid var(--border); font-size:0.8rem;">
                     <option value="ALL">All Divisions</option>
                     ${uniqueDivs.map(d => `<option value="${d}">${d}</option>`).join('')}
                 </select>
@@ -1029,6 +1028,34 @@
             if(chartOrg) chartOrg.destroy();
             chartOrg = new Chart(document.getElementById('chartOrg'), { type: 'bar', data: { labels: ["IDLE", "STAGNANT", "WALKER", "RUNNER", "FLYER", "ASTRONAUT"], datasets: [{ label: 'Total Org', data: distOrg, backgroundColor: '#10b981', borderRadius: 4 }] }, options: { maintainAspectRatio:false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { display: false } }, x: { grid: { display: false } } } } });
         }
+    }
+
+    function filterManagersByDiv() {
+        const divFilter = document.getElementById('org-filter-div').value;
+        const mgrSelect = document.getElementById('org-filter-mgr');
+        
+        let filteredUsers = globalReports;
+        if (divFilter !== "ALL") {
+            filteredUsers = globalReports.filter(u => (u[COL.div] || "").trim() === divFilter);
+        }
+
+        const mgrMap = new Map();
+        filteredUsers.forEach(u => {
+             let rawM = (u[COL.mgr] || "").toString();
+             let match = allCompanyData.find(x => rawM.includes(x[COL.id]));
+             if(match) {
+                 if(!mgrMap.has(match[COL.id])) mgrMap.set(match[COL.id], match[COL.name]);
+             }
+        });
+        
+        const mgrOptions = Array.from(mgrMap.entries())
+            .map(([id, name]) => ({id, name}))
+            .sort((a,b) => a.name.localeCompare(b.name));
+            
+        mgrSelect.innerHTML = `<option value="ALL">All Managers</option>` + 
+            mgrOptions.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+            
+        updateOrgChart();
     }
 
     function updateOrgChart() {
