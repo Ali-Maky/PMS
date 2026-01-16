@@ -1535,6 +1535,7 @@
         let adminCache = [];
         let allCompanyData = [];
         let globalReports = [];
+        let showScoreToViewer = false;
 
         // --- 2. INIT ---
         window.onload = async function () {
@@ -2791,7 +2792,7 @@
                 if (isSearchMode) canEdit = false;
 
                 let mName = data[COL.mgr] || '-'; if (mName.includes('(')) mName = mName.split('(')[0];
-                const showScoreToViewer = (stat === 'Approved') || (isManager && !viewingSelf) || (['Admin', 'Master'].includes(uRole) && !viewingSelf);
+                showScoreToViewer = (stat === 'Approved') || (isManager && !viewingSelf) || (['Admin', 'Master'].includes(uRole) && !viewingSelf) || (isManager && stat === 'Draft') || (isManager && stat === 'Submitted to Manager');
 
                 // --- COMPANY NAME LOGIC ---
                 let comp = "Zain Iraq";
