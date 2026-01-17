@@ -1587,38 +1587,55 @@ const COL = {
     }
 }
 
-       async function mapColumns() {
+      async function mapColumns() {
+    // Fetch one row to inspect column names
     const { data } = await db.from('active_list').select('*').limit(1);
+    
     if (data && data[0]) {
         const r = data[0];
         const keys = Object.keys(r);
+        
+        // Helper to find a column that matches any term in the list
         const findCol = (terms) => keys.find(k => terms.some(t => k.toLowerCase().trim() === t.toLowerCase().trim() || k.toLowerCase().includes(t.toLowerCase())));
 
+        // 1. Employee ID
         if (r['Employee Number']) COL.id = 'Employee Number';
+        
+        // 2. Name
         if (r['Name']) COL.name = 'Name';
+        
+        // 3. Level
         if (r['Level']) COL.lvl = 'Level';
 
-        // --- FIX: Search Priority Changed ---
-        // We look for "Functional Title", "Business Title", or "Position" FIRST.
-        // We only fall back to "Job Title" or "Job" if the specific ones are missing.
+        // --- THE FIX IS HERE ---
+        // We strictly look for "Position" FIRST. 
+        // Only if "Position" is missing do we fallback to "Job Title".
         const jobCol = findCol([
+            'position',        // <--- Priority #1
             'functional title', 
-            'business title', 
-            'position', 
             'designation', 
-            'job title', 
+            'business title',
+            'job title',       // <--- Fallback
             'job'
         ]);
         if (jobCol) COL.job = jobCol;
 
-        if (r['Division']) COL.div = 'Division';
-        if (r['Department']) COL.dept = 'Department';
+        // 4. Division & Department
+        const divCol = findCol(['division', 'div']);
+        if (divCol) COL.div = divCol;
+        
+        const deptCol = findCol(['department', 'dept']);
+        if (deptCol) COL.dept = deptCol;
 
+        // 5. Manager / Supervisor
         const mgrCol = findCol(['supervisor', 'manager', 'reports to', 'direct manager']);
         if (mgrCol) COL.mgr = mgrCol;
 
+        // 6. Access Role
         const roleCol = findCol(['access_role', 'role', 'permission']);
         if (roleCol) COL.role = roleCol;
+        
+        console.log("Mapped Job Column to:", COL.job); // Debugging line
     }
 }
         async function restoreSession(id) {
@@ -3759,6 +3776,7 @@ diagnoseTeam();
 </body>
 
 </html>
+
 
 
 
