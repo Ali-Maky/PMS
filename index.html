@@ -1757,6 +1757,7 @@
         }
 
         async function mapColumns() {
+            // Try to auto-detect
             const { data } = await db.from('active_list').select('*').limit(1);
             if (data && data[0]) {
                 const r = data[0];
@@ -1764,6 +1765,8 @@
                 const findCol = (terms) => keys.find(k => terms.some(t => k.toLowerCase().includes(t.toLowerCase())));
 
                 if (r['Employee Number']) COL.id = 'Employee Number';
+                else if (r['ID']) COL.id = 'ID';
+
                 if (r['Name']) COL.name = 'Name';
                 if (r['Level']) COL.lvl = 'Level';
                 if (r['Job']) COL.job = 'Job';
@@ -1772,15 +1775,24 @@
 
                 const mgrCol = findCol(['supervisor', 'manager', 'reports to', 'direct manager']);
                 if (mgrCol) COL.mgr = mgrCol;
+                else COL.mgr = 'Manager'; // Default fallback
 
                 const roleCol = findCol(['access_role', 'role', 'permission']);
                 if (roleCol) COL.role = roleCol;
+            } else {
+                // FALLBACK IF RLS BLOCKS AUTO-DETECT
+                // We assume standard names or what user manually set
+                console.warn("Auto-map failed (likely RLS). Using defaults.");
+                COL.id = 'Employee Number'; // <--- ADJUST THIS IF NEEDED
+                COL.mgr = 'Manager';        // <--- ADJUST THIS IF NEEDED
             }
         }
 
         async function restoreSession(id) {
-            const { data } = await db.from('active_list').select('*').eq(COL.id, id).single();
-            if (data) { user = data; startIdleTimer(); launchApp(); } else showLogin();
+            // Use RPC for restore as well if RLS blocks direct select
+            const { data, error } = await db.rpc('get_user_by_id', { lookup_id: id });
+            if (data && data[0]) { user = data[0]; startIdleTimer(); launchApp(); }
+            else showLogin();
         }
 
         function showLogin() { document.getElementById('loading-overlay').classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden'); }
@@ -1793,10 +1805,19 @@
             const btn = document.getElementById('btn-check');
             if (!id) return;
             btn.innerText = "Checking...";
-            const { data, error } = await db.from('active_list').select('*').eq(COL.id, id).single();
-            if (error || !data) { btn.innerText = "Continue"; document.getElementById('err-id').innerText = "ID not found"; document.getElementById('err-id').style.display = 'block'; return; }
 
-            user = data;
+            // USE SECURE RPC TO CHECK ID (Bypasses RLS)
+            const { data, error } = await db.rpc('get_user_by_id', { lookup_id: id });
+
+            if (error || !data || data.length === 0) {
+                console.error("Login Check Error:", error);
+                btn.innerText = "Continue";
+                document.getElementById('err-id').innerText = "ID not found (or Login Function missing)";
+                document.getElementById('err-id').style.display = 'block';
+                return;
+            }
+
+            user = data[0];
             document.getElementById('view-id').classList.add('hidden');
             document.getElementById('view-pass').classList.remove('hidden');
 
