@@ -2593,22 +2593,20 @@ const systemEmail = `${cleanId}@zainpms.com`;
 
         // --- RECURSIVE ORG FETCH ---
         // --- RECURSIVE ORG FETCH ---
+// --- RECURSIVE ORG FETCH (Fixed & Safe) ---
 function getDownstream(rootId, allData) {
     let subordinates = [];
     if (!rootId) return subordinates;
 
-    // Queue for BFS traversal (using lowercase for consistent matching)
     let queue = [rootId.toString().toLowerCase()];
-    let visited = new Set(); 
+    let visited = new Set();
 
     while (queue.length > 0) {
         let currentId = queue.shift();
-        
-        // Prevent infinite loops (circular reporting)
         if (visited.has(currentId)) continue;
         visited.add(currentId);
 
-        // Find everyone reporting to 'currentId'
+        // Find employees reporting to currentId
         let direct = allData.filter(u => {
             const rawMgr = (u[COL.mgr] || "").toString().toLowerCase();
             return rawMgr.includes(currentId);
@@ -2618,7 +2616,7 @@ function getDownstream(rootId, allData) {
             // Avoid duplicates
             if (!subordinates.some(x => x[COL.id] === d[COL.id])) {
                 subordinates.push(d);
-                // If this person has an ID, add them to queue to find THEIR team
+                // CRITICAL FIX: Check if ID exists before converting to string
                 if (d[COL.id]) {
                     queue.push(d[COL.id].toString().toLowerCase());
                 }
@@ -2628,10 +2626,9 @@ function getDownstream(rootId, allData) {
     return subordinates;
 }
 
-        // --- 7. REPORTS ---
-       // --- LOAD REPORTS ---
+// --- 7. REPORTS (Updated Visibility) ---
 async function loadReports() {
-    // 1. Ensure Data
+    // 1. Ensure Data is Loaded
     if (allCompanyData.length === 0) {
         document.getElementById('main-view').innerHTML = `<div class="spinner" style="margin:50px auto;"></div>`;
         allCompanyData = await fetchAllData();
@@ -2656,19 +2653,20 @@ async function loadReports() {
         return;
     }
 
-    // 3. Get Total Organization (Recursive)
+    // 3. Get Total Organization
     globalReports = getDownstream(user[COL.id], allCompanyData);
 
-    // Filter rule for Commercial/CCO (exclude Security division)
+    // Apply CCO/Commercial Logic (Remove Security)
     const myJob = (user[COL.job] || "").toUpperCase();
     if (myJob.includes('COMMERCIAL') || myJob.includes('CCO')) {
         globalReports = globalReports.filter(u => !((u[COL.div] || "").toUpperCase().includes('SECURITY')));
     }
 
-    // 4. DECISION: Show Org Chart if hierarchy exists
-    let showOrgChart = (globalReports.length > directReports.length);
+    // 4. VISIBILITY FIX: Always show Org Chart if reports exist
+    // Previously, this hid the chart if global == direct. Now it shows it so you can use the filters.
+    let showOrgChart = (directReports.length > 0); 
 
-    // --- Prepare Data for Charts ---
+    // --- Prepare Chart Data ---
     const globalRating = masterData.rating || 0;
 
     const calcDist = (list) => {
@@ -2696,17 +2694,17 @@ async function loadReports() {
     };
 
     const distDirect = calcDist(directReports);
-    let distOrg = showOrgChart ? calcDist(globalReports) : null;
+    let distOrg = calcDist(globalReports);
 
-    // --- Build Filters for Org Chart ---
+    // --- Build Filters ---
     let filterHtml = "";
     if (showOrgChart) {
         const uniqueDivs = [...new Set(globalReports.map(u => (u[COL.div] || "").trim()).filter(Boolean))].sort();
         
-        // Map Manager IDs to Names for the dropdown
         const mgrMap = new Map();
         globalReports.forEach(u => {
             let rawM = (u[COL.mgr] || "").toString();
+            // Try to find the manager's real name
             let match = allCompanyData.find(x => rawM.includes(x[COL.id]));
             if (match) {
                 if (!mgrMap.has(match[COL.id])) mgrMap.set(match[COL.id], match[COL.name]);
@@ -2727,7 +2725,7 @@ async function loadReports() {
          </div>`;
     }
 
-    // --- Build Table Rows ---
+    // --- Table Rows ---
     let tableRows = directReports.map(u => {
         let userGoals = u[COL.goals] || [];
         if (typeof userGoals === 'string') { try { userGoals = JSON.parse(userGoals); } catch (e) { userGoals = [] } }
@@ -2767,7 +2765,7 @@ async function loadReports() {
         <div class="header-bar">
             <div>
                 <h2 class="page-title">Leadership Reports</h2>
-                <p class="page-sub">Analyzing Direct Reports ${showOrgChart ? '& Total Organization' : ''}</p>
+                <p class="page-sub">Analyzing Direct Reports & Organization</p>
             </div>
             <button class="btn btn-primary" onclick="loadReports()"><i class="fa-solid fa-rotate"></i> &nbsp; Refresh</button>
         </div>
@@ -2826,85 +2824,6 @@ async function loadReports() {
                 options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { display: false } }, x: { grid: { display: false } } } } 
             });
         }
-    }
-}
-
-// --- ORG CHART FILTERS ---
-function filterManagersByDiv() {
-    const divFilter = document.getElementById('org-filter-div').value;
-    const mgrSelect = document.getElementById('org-filter-mgr');
-
-    let filteredUsers = globalReports;
-    if (divFilter !== "ALL") {
-        filteredUsers = globalReports.filter(u => (u[COL.div] || "").trim() === divFilter);
-    }
-
-    const mgrMap = new Map();
-    filteredUsers.forEach(u => {
-        let rawM = (u[COL.mgr] || "").toString();
-        let match = allCompanyData.find(x => rawM.includes(x[COL.id]));
-        if (match) {
-            if (!mgrMap.has(match[COL.id])) mgrMap.set(match[COL.id], match[COL.name]);
-        }
-    });
-
-    const mgrOptions = Array.from(mgrMap.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-
-    mgrSelect.innerHTML = `<option value="ALL">All Managers</option>` + mgrOptions.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
-
-    updateOrgChart();
-}
-
-function updateOrgChart() {
-    const divFilter = document.getElementById('org-filter-div').value;
-    const mgrFilter = document.getElementById('org-filter-mgr').value;
-
-    let filteredData = globalReports;
-
-    // Filter by Manager (Recursive Tree)
-    if (mgrFilter !== "ALL") {
-        const subTree = getDownstream(mgrFilter, allCompanyData);
-        const globalIds = new Set(globalReports.map(x => x[COL.id]));
-        // Intersect: Make sure they are actually in the user's hierarchy
-        filteredData = subTree.filter(x => globalIds.has(x[COL.id]));
-    }
-
-    // Filter by Division
-    if (divFilter !== "ALL") {
-        filteredData = filteredData.filter(u => {
-            const userDiv = (u[COL.div] || "").trim();
-            return userDiv === divFilter;
-        });
-    }
-
-    document.getElementById('org-count-lbl').innerText = `(${filteredData.length})`;
-
-    const globalRating = masterData.rating || 0;
-    let dist = [0, 0, 0, 0, 0, 0];
-
-    filteredData.forEach(u => {
-        let userGoals = u[COL.goals] || [];
-        if (typeof userGoals === 'string') { try { userGoals = JSON.parse(userGoals); } catch (e) { userGoals = [] } }
-
-        let w = getW(u[COL.lvl], u[COL.job]);
-        let sScore = globalRating * (w.s / 100);
-        let iScore = 0;
-        if(Array.isArray(userGoals)) userGoals.forEach(g => iScore += (g.rating || 0) * (g.weight || 0));
-
-        let total = sScore + (iScore * (w.i / 100));
-        let b = 0;
-        if (total >= 5.5) b = 5;
-        else if (total >= 4.5) b = 4;
-        else if (total >= 3.5) b = 3;
-        else if (total >= 2.5) b = 2;
-        else if (total >= 1.5) b = 1;
-
-        dist[b]++;
-    });
-
-    if (chartOrg) {
-        chartOrg.data.datasets[0].data = dist;
-        chartOrg.update();
     }
 }
       async function loadTeam() {
@@ -3857,5 +3776,6 @@ diagnoseTeam();
 </body>
 
 </html>
+
 
 
