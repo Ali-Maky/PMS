@@ -1616,17 +1616,33 @@ const { data, error } = await db.from('active_list')
     }
 }
         async function doLogin() {
-            const p1 = document.getElementById('inp-pass').value;
-            if (isRegistering) {
-                if (p1 !== document.getElementById('inp-confirm').value) { alert("Passwords match error"); return; }
-                await db.from('active_list').update({ password: p1 }).eq(COL.id, user[COL.id]);
-            } else {
-                if (p1 !== (user[COL.pass] || user['password'])) { alert("Incorrect Password"); return; }
-            }
-            localStorage.setItem('zpms_uid', user[COL.id]); localStorage.setItem('zpms_time', Date.now());
-            startIdleTimer(); launchApp();
-        }
+    const p1 = document.getElementById('inp-pass').value;
+    const storedPass = (user[COL.pass] || user['password'] || "");
 
+    if (isRegistering) {
+        if (p1 !== document.getElementById('inp-confirm').value) { 
+            alert("Passwords match error"); 
+            return; 
+        }
+        await db.from('active_list').update({ password: p1 }).eq(COL.id, user[COL.id]);
+    } else {
+        if (p1 !== storedPass.toString()) { 
+            alert("Incorrect Password"); 
+            return; 
+        }
+    }
+
+    // 1. Save Session
+    localStorage.setItem('zpms_uid', user[COL.id]); 
+    localStorage.setItem('zpms_time', Date.now());
+    
+    // 2. Clear the login UI
+    document.getElementById('login-screen').classList.add('hidden');
+    
+    // 3. RE-INITIALIZE THE APP IMMEDIATELY
+    startIdleTimer(); 
+    launchApp(); // This loads the sidebar, team, and reports
+}
         // --- BATCHED FETCH HELPER ---
 async function fetchAllData() {
     let allRows = [];
@@ -3749,6 +3765,7 @@ h += `</div></div>`; // Close container
     </style>
 </body>
 </html>
+
 
 
 
