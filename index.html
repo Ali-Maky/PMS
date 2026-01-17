@@ -1631,7 +1631,6 @@ const { data, error } = await db.from('active_list')
 async function fetchAllData() {
     let allRows = [];
     let from = 0;
-    const step = 1000;
     
     while (true) { // <--- The loop starts here
         const { data, error } = await db.from('active_list')
@@ -3752,6 +3751,7 @@ h += `</div></div>`; // Close container
     </style>
 </body>
 </html>
+
 
 
 
