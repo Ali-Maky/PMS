@@ -2021,58 +2021,68 @@ function renderDirectoryTable(list) {
         `;
         }
 
-        function processBulkImport(inp) {
-            const file = inp.files[0]; if (!file) return;
-            const reader = new FileReader();
-            reader.onload = async function (e) {
-                try {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-                    if (json.length === 0) { alert("Empty Excel file"); return; }
+        function processUserBulkImport(inp) {
+    const file = inp.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async function (e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+            
+            if (json.length === 0) { alert("The Excel file is empty!"); return; }
 
-                    const grouped = {};
-                    function getVal(row, candidates) {
-                        const keys = Object.keys(row);
-                        const clean = (s) => s.toString().toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-                        for (let c of candidates) { const found = keys.find(k => clean(k) === clean(c)); if (found && row[found] !== undefined) return row[found]; }
-                        if (candidates.includes("Target")) { const tKey = keys.find(k => { const c = clean(k); return c === 'l4' || c === 'target' || c === 'targets' || c.includes('runnertarget'); }); if (tKey && row[tKey] !== undefined) return row[tKey]; }
-                        return "";
-                    }
-
-                    json.forEach(r => {
-                        const empId = getVal(r, ['Employee ID', 'ID', 'EmpID', 'User']);
-                        if (!empId) return;
-                        if (!grouped[empId]) grouped[empId] = [];
-                        let w = getVal(r, ['Weight', 'Wt', 'W%']); w = parseFloat(w) || 0; if (w > 1) w = w / 100;
-                        grouped[empId].push({
-                            title: getVal(r, ['Objective', 'Title', 'Item', 'Items', 'Goal', 'KPI']) || "Imported Goal",
-                            weight: w,
-                            desc: getVal(r, ['Description', 'Desc', 'Details']),
-                            unit: getVal(r, ['Unit', 'UoM']),
-                            rating: 0,
-                            targets: [getVal(r, ['L1', '1']), getVal(r, ['L2', '2']), getVal(r, ['L3', '3']), getVal(r, ['Target', 'L4', 'Runner']), getVal(r, ['L5', '5']), getVal(r, ['L6', '6'])]
-                        });
-                    });
-
-                    const empIds = Object.keys(grouped);
-                    if (empIds.length === 0) { alert("No valid Employee IDs found."); return; }
-                    if (!confirm(`Found goals for ${empIds.length} employees. Proceed?`)) return;
-
-                    showSaving();
-                    let successCount = 0;
-                    for (const eid of empIds) {
-                        const { error } = await db.from('active_list').update({ goals: grouped[eid] }).eq(COL.id, eid);
-                        if (!error) successCount++;
-                    }
-                    showSaved();
-                    alert(`Successfully updated scorecards for ${successCount} employees.`);
-                    inp.value = '';
-                } catch (err) { console.error(err); alert("Error reading Excel."); }
+            // Helper to find data regardless of header capitalization or spaces
+            const getVal = (row, candidates) => {
+                const keys = Object.keys(row);
+                for (let c of candidates) {
+                    const match = keys.find(k => k.toLowerCase().trim() === c.toLowerCase());
+                    if (match) return row[match];
+                }
+                return null;
             };
-            reader.readAsArrayBuffer(file);
-        }
 
+            const updates = json.map(r => {
+                const empId = getVal(r, ['Employee Number', 'ID', 'Employee ID', 'EmpID', 'EmployeeNumber']);
+                if (!empId) return null;
+
+                return {
+                    [COL.id]: empId.toString().trim(),
+                    [COL.name]: getVal(r, ['Name', 'Full Name', 'FullName']) || "New Employee",
+                    [COL.lvl]: getVal(r, ['Level', 'Lvl']) || "L4",
+                    [COL.job]: getVal(r, ['Job', 'Job Title', 'Title']) || "",
+                    [COL.div]: getVal(r, ['Division', 'Div']) || "",
+                    [COL.dept]: getVal(r, ['Department', 'Dept']) || "",
+                    [COL.mgr]: getVal(r, ['Manager', 'Manager ID', 'Reports To']) || ""
+                };
+            }).filter(x => x !== null);
+
+            if (updates.length === 0) {
+                alert("Import Failed: No valid data found. Ensure your header is named 'Employee Number' or 'ID'.");
+                return;
+            }
+
+            if (!confirm(`Ready to import ${updates.length} users?`)) return;
+
+            showSaving();
+            const { error } = await db.from('active_list').upsert(updates);
+
+            if (error) {
+                alert("Database Error: " + error.message);
+            } else {
+                alert(`Successfully imported ${updates.length} employees!`);
+                allCompanyData = await fetchAllData();
+                loadAdminDirectory();
+            }
+            showSaved();
+            inp.value = '';
+        } catch (err) { 
+            console.error(err); 
+            alert("Error processing file. Please check the Excel format."); 
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
         // --- SHARED GOALS EDITOR (DB DRAFT) ---
         async function loadAdminSharedGoals() {
             const { data: draftRow, error } = await db.from('company_settings').select('data').eq('id', 'shared_goals_draft').maybeSingle();
@@ -3830,6 +3840,7 @@ h += `</div></div>`; // Close container
     </style>
 </body>
 </html>
+
 
 
 
