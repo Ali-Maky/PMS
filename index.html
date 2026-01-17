@@ -1615,46 +1615,36 @@ const { data, error } = await db.from('active_list')
         document.getElementById('btn-login').innerText = "Create & Login";
     }
 }
-      async function doLogin() {
+    async function doLogin() {
     const p1 = document.getElementById('inp-pass').value;
-    const storedPass = (user[COL.pass] || user['password'] || "");
+    // Safe check for stored password
+    const storedPass = (user[COL.pass] || user['password'] || "").toString().trim();
 
     if (isRegistering) {
         if (p1 !== document.getElementById('inp-confirm').value) { 
             alert("Passwords match error"); 
             return; 
         }
-        await db.from('active_list').update({ password: p1 }).eq(COL.id, user[COL.id]);
+        const { error } = await db.from('active_list').update({ password: p1 }).eq(COL.id, user[COL.id]);
+        if (error) { alert("Save error: " + error.message); return; }
     } else {
-        if (p1 !== storedPass.toString()) { 
+        if (p1 !== storedPass) { 
             alert("Incorrect Password"); 
             return; 
         }
     }
 
-    // 1. Show the loading spinner to block the UI during transition
-    document.getElementById('loading-overlay').classList.remove('hidden');
-
-    // 2. Save Session Data
+    // 1. Save Session to LocalStorage
     localStorage.setItem('zpms_uid', user[COL.id]); 
     localStorage.setItem('zpms_time', Date.now());
     
-    // 3. IMPORTANT: Reset all global variables to ensure they are re-calculated
-    allCompanyData = []; 
-    globalReports = [];
+    // 2. Show the initialization overlay so the user sees a "clean" transition
+    document.getElementById('loading-overlay').classList.remove('hidden');
 
-    // 4. Hide the Login Screen
-    document.getElementById('login-screen').classList.add('hidden');
-    
-    // 5. Trigger the Full App Launch
-    startIdleTimer(); 
-    
-    // Using setTimeout(..., 100) gives the browser a "breath" to update the 
-    // variables before the logic for 'My Team' or 'HR Admin' starts running.
-    setTimeout(async () => {
-        await launchApp(); 
-        document.getElementById('loading-overlay').classList.add('hidden');
-    }, 100);
+    // 3. FORCE AUTOMATIC REFRESH
+    // This solves the 'Identity' issue 100% because window.onload will 
+    // trigger restoreSession() with the fresh credentials.
+    location.reload(); 
 }
         // --- BATCHED FETCH HELPER ---
 async function fetchAllData() {
@@ -3778,6 +3768,7 @@ h += `</div></div>`; // Close container
     </style>
 </body>
 </html>
+
 
 
 
