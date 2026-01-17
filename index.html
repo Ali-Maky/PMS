@@ -2671,6 +2671,7 @@ function getDownstream(rootId, allData) {
 }
 
 // --- 2. REPORTS LOADING (With Forced Chart Visibility) ---
+// --- 7. REPORTS (Fixed Manager Filter) ---
 async function loadReports() {
     // 1. Ensure Data is Loaded
     if (allCompanyData.length === 0) {
@@ -2681,7 +2682,7 @@ async function loadReports() {
     const myId = user[COL.id].toString().toLowerCase();
     const myName = (user[COL.name] || "").toString().toLowerCase();
 
-    // 2. Get Direct Reports (Level 1) - Strict Matching
+    // 2. Get Direct Reports (Level 1)
     let directReports = allCompanyData.filter(u => {
         const m = (u[COL.mgr] || "").toString().toLowerCase();
         return m.includes(myId) || (myName.length > 3 && m.includes(myName));
@@ -2697,19 +2698,16 @@ async function loadReports() {
         return;
     }
 
-    // 3. Get Total Organization (Recursive) - Uses the NEW Fuzzy Logic
+    // 3. Get Total Organization (Recursive)
     globalReports = getDownstream(user[COL.id], allCompanyData);
 
-    // Apply Filter for CCO/Commercial (Exclude Security)
+    // Filter Logic: CCO/Commercial excludes Security
     const myJob = (user[COL.job] || "").toUpperCase();
     if (myJob.includes('COMMERCIAL') || myJob.includes('CCO')) {
         globalReports = globalReports.filter(u => !((u[COL.div] || "").toUpperCase().includes('SECURITY')));
     }
 
-    // 4. VISIBILITY: Always show Org Chart if any reports exist
-    // We check directReports > 0 to enable the view.
-    // Even if globalReports count is currently equal to directReports, we show it 
-    // so the user can see the "0" difference and know the data might need cleaning.
+    // 4. VISIBILITY: Always show Org Chart if reports exist
     let showOrgChart = (directReports.length > 0);
 
     // --- Prepare Chart Data ---
@@ -2742,22 +2740,47 @@ async function loadReports() {
     const distDirect = calcDist(directReports);
     let distOrg = calcDist(globalReports);
 
-    // --- Build Filters ---
+    // --- Build Filters (FIXED LOGIC) ---
     let filterHtml = "";
     if (showOrgChart) {
         const uniqueDivs = [...new Set(globalReports.map(u => (u[COL.div] || "").trim()).filter(Boolean))].sort();
         
-        // Build Manager List for Filter Dropdown
+        // --- UPDATED MANAGER MAPPING LOGIC ---
         const mgrMap = new Map();
+        
         globalReports.forEach(u => {
-            let rawM = (u[COL.mgr] || "").toString();
-            // Try to find the manager's real name from DB
-            let match = allCompanyData.find(x => rawM.includes(x[COL.id]));
+            let rawM = (u[COL.mgr] || "").toString().toLowerCase().trim();
+            if(!rawM || rawM.length < 2) return;
+
+            // Find the Manager Object in the database
+            let match = allCompanyData.find(x => {
+                const xId = (x[COL.id] || "").toString().toLowerCase();
+                const xName = (x[COL.name] || "").toString().toLowerCase();
+                
+                // Match 1: Supervisor Column contains ID (e.g. "ZIQ123" inside "ZIQ123")
+                if(xId && rawM.includes(xId)) return true;
+
+                // Match 2: Supervisor Column contains Name (e.g. "Ali Maky" inside "Ali Maky")
+                if(xName.length > 3 && rawM.includes(xName)) return true;
+
+                // Match 3: Name contains Supervisor Column (e.g. "Ali Maky Hussein" includes "Ali Maky")
+                if(rawM.length > 3 && xName.includes(rawM)) return true;
+
+                return false;
+            });
+
             if (match) {
-                if (!mgrMap.has(match[COL.id])) mgrMap.set(match[COL.id], match[COL.name]);
+                // Only add if not already in list
+                if (!mgrMap.has(match[COL.id])) {
+                    mgrMap.set(match[COL.id], match[COL.name]);
+                }
             }
         });
-        const mgrOptions = Array.from(mgrMap.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+
+        // Convert Map to Array & Sort Alphabetically
+        const mgrOptions = Array.from(mgrMap.entries())
+            .map(([id, name]) => ({ id, name }))
+            .sort((a, b) => a.name.localeCompare(b.name));
 
         filterHtml = `
          <div style="display:flex; justify-content:flex-end; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
@@ -3823,6 +3846,7 @@ diagnoseTeam();
 </body>
 
 </html>
+
 
 
 
