@@ -1615,7 +1615,7 @@ const { data, error } = await db.from('active_list')
         document.getElementById('btn-login').innerText = "Create & Login";
     }
 }
-        async function doLogin() {
+      async function doLogin() {
     const p1 = document.getElementById('inp-pass').value;
     const storedPass = (user[COL.pass] || user['password'] || "");
 
@@ -1632,16 +1632,29 @@ const { data, error } = await db.from('active_list')
         }
     }
 
-    // 1. Save Session
+    // 1. Show the loading spinner to block the UI during transition
+    document.getElementById('loading-overlay').classList.remove('hidden');
+
+    // 2. Save Session Data
     localStorage.setItem('zpms_uid', user[COL.id]); 
     localStorage.setItem('zpms_time', Date.now());
     
-    // 2. Clear the login UI
+    // 3. IMPORTANT: Reset all global variables to ensure they are re-calculated
+    allCompanyData = []; 
+    globalReports = [];
+
+    // 4. Hide the Login Screen
     document.getElementById('login-screen').classList.add('hidden');
     
-    // 3. RE-INITIALIZE THE APP IMMEDIATELY
+    // 5. Trigger the Full App Launch
     startIdleTimer(); 
-    launchApp(); // This loads the sidebar, team, and reports
+    
+    // Using setTimeout(..., 100) gives the browser a "breath" to update the 
+    // variables before the logic for 'My Team' or 'HR Admin' starts running.
+    setTimeout(async () => {
+        await launchApp(); 
+        document.getElementById('loading-overlay').classList.add('hidden');
+    }, 100);
 }
         // --- BATCHED FETCH HELPER ---
 async function fetchAllData() {
@@ -3765,6 +3778,7 @@ h += `</div></div>`; // Close container
     </style>
 </body>
 </html>
+
 
 
 
