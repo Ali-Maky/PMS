@@ -3438,27 +3438,30 @@ async function loadReports() {
         function closeConfirm() { document.getElementById('confirm-overlay').classList.remove('open'); confirmCallback = null; }
         function doConfirm() { if (confirmCallback) confirmCallback(); closeConfirm(); }
 
-        function getRole(u, isManagerByReports) {
-            if (!u) return 'Staff';
-            const job = (u[COL.job] || "").trim();
-            const cleanJob = job.toLowerCase().replace(/\s+/g, ' ').trim();
-            const cleanMaster = MASTER_ADMIN_TITLE.toLowerCase().replace(/\s+/g, ' ').trim();
-            const roleCol = u[COL.role] || "";
+      function getRole(u, isManagerByReports) {
+    if (!u) return 'Staff';
+    const job = (u[COL.job] || "").trim();
+    const cleanJob = job.toLowerCase().replace(/\s+/g, ' ').trim();
+    const cleanMaster = MASTER_ADMIN_TITLE.toLowerCase().replace(/\s+/g, ' ').trim();
+    const roleCol = u[COL.role] || "";
 
-            if (u[COL.id] === 'ZIQ00783') return 'Master';
-            if (cleanJob === cleanMaster) return 'Master';
-            if (roleCol.toLowerCase() === 'admin') return 'Admin';
+    // 1. Security & Admin Overrides
+    if (u[COL.id] === 'ZIQ00783') return 'Master';
+    if (cleanJob === cleanMaster) return 'Master';
+    if (roleCol.toLowerCase() === 'admin') return 'Admin';
 
-            if (isManagerByReports) return 'Manager';
+    // 2. Check Levels FIRST (Seniority overrides generic manager status)
+    const l = (u[COL.lvl] || "").toUpperCase();
+    if (l.includes('L1')) return 'Chief';
+    if (l.includes('L2')) return 'Director';
+    if (l.includes('L3')) return 'Senior Manager';
+    
+    // 3. Then check if they manage people
+    if (isManagerByReports) return 'Manager';
 
-            const l = u[COL.lvl] || "";
-            if (l.includes('L1')) return 'Chief';
-            if (l.includes('L2')) return 'Director';
-            if (l.includes('L3')) return 'Senior Manager';
-            if (l.includes('L4')) return 'Manager';
-            return 'Staff';
-        }
-
+    if (l.includes('L4')) return 'Manager';
+    return 'Staff';
+}
         function getW(l, j) {
             const job = (j || "").toLowerCase().trim();
             const levelStr = (l || "").toUpperCase();
@@ -3699,6 +3702,7 @@ diagnoseTeam();
 </body>
 
 </html>
+
 
 
 
