@@ -2001,13 +2001,10 @@ async function processBulkImport(inp) {
             const workbook = XLSX.read(data, { type: 'array' });
             const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
             
-            if (json.length === 0) { 
-                alert("The selected Excel file is empty."); 
-                return; 
-            }
+            if (json.length === 0) { alert("Excel file is empty."); return; }
 
-            // --- 1. DATA GROUPING ---
             const grouped = {};
+            // Robust value finder to ignore spaces and case
             const getVal = (row, candidates) => {
                 const keys = Object.keys(row);
                 for (let c of candidates) {
@@ -2018,69 +2015,56 @@ async function processBulkImport(inp) {
             };
 
             json.forEach(r => {
-                const empId = getVal(r, ['EmployeeID', 'ID', 'Employee Number', 'EmpID']);
-                if (!empId) return;
+                const empIdRaw = getVal(r, ['EmployeeID', 'ID', 'Employee Number', 'EmpID']);
+                if (!empIdRaw) return;
                 
-                const cleanId = empId.toString().trim();
-                if (!grouped[cleanId]) grouped[cleanId] = [];
+                const eid = empIdRaw.toString().trim();
+                if (!grouped[eid]) grouped[eid] = [];
 
-                let w = getVal(r, ['Weight', 'Wt', 'W%']);
-                w = parseFloat(w) || 0; 
-                if (w > 1) w = w / 100; // Automatically converts 20 to 0.20
+                let w = parseFloat(getVal(r, ['Weight', 'Wt', 'W%'])) || 0;
+                if (w > 1) w = w / 100; // Auto-convert 20 to 0.20
 
-                grouped[cleanId].push({
-                    title: getVal(r, ['Objective', 'Title', 'Goal', 'KPI']) || "Imported Goal",
+                grouped[eid].push({
+                    title: getVal(r, ['Objective', 'Title', 'Goal', 'KPI']) || "New Objective",
                     weight: w,
                     desc: getVal(r, ['Description', 'Desc', 'Details']) || "",
                     unit: getVal(r, ['Unit', 'UoM']) || "",
                     rating: 0,
                     targets: [
-                        getVal(r, ['L1']) || "", 
-                        getVal(r, ['L2']) || "", 
-                        getVal(r, ['L3']) || "",
-                        getVal(r, ['Target', 'L4', 'Runner']) || "", 
-                        getVal(r, ['L5']) || "", 
-                        getVal(r, ['L6']) || ""
+                        getVal(r, ['L1']), getVal(r, ['L2']), getVal(r, ['L3']),
+                        getVal(r, ['Target', 'L4', 'Runner']), 
+                        getVal(r, ['L5']), getVal(r, ['L6'])
                     ]
                 });
             });
 
             const empIds = Object.keys(grouped);
             if (empIds.length === 0) {
-                alert("Import Failed: No valid 'Employee ID' column found in Excel.");
+                alert("Import Error: No valid 'Employee ID' or 'ID' column found in your Excel.");
                 return;
             }
 
-            // --- 2. DATABASE UPDATE ---
-            if (!confirm(`Found objectives for ${empIds.length} employees. Update database now?`)) return;
+            if (!confirm(`Importing objectives for ${empIds.length} employees. Proceed?`)) return;
 
             showSaving();
-            let successCount = 0;
-            let failCount = 0;
+            let success = 0; let fail = 0;
 
             for (const eid of empIds) {
-                // Update the goals column for each specific Employee ID
                 const { error } = await db.from('active_list')
                     .update({ goals: grouped[eid] })
                     .eq(COL.id, eid);
                 
-                if (!error) successCount++;
-                else {
-                    console.error(`Error updating ID ${eid}:`, error);
-                    failCount++;
-                }
+                if (!error) success++; else fail++;
             }
 
             showSaved();
-            alert(`Import Finished!\n✅ ${successCount} scorecards updated\n❌ ${failCount} failed`);
-            
-            // Refresh the global data cache
-            allCompanyData = await fetchAllData(); 
-            inp.value = ''; // Reset file input
+            alert(`Import Finished!\n✅ Updated: ${success}\n❌ Failed: ${fail}`);
+            allCompanyData = await fetchAllData(); // Refresh local directory
+            inp.value = '';
 
         } catch (err) { 
-            console.error("Excel Processing Error:", err); 
-            alert("Error reading Excel. Please ensure it is a valid .xlsx file."); 
+            console.error("Import Error:", err); 
+            alert("Unexpected error during import. Check the browser console."); 
         }
     };
     reader.readAsArrayBuffer(file);
@@ -3963,6 +3947,7 @@ h += `</div></div>`; // Close container
     </style>
 </body>
 </html>
+
 
 
 
