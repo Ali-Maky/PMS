@@ -2875,9 +2875,11 @@ async function loadReports() {
 
               // ... inside loadEval function, scroll down to where 'h' string is being built for buttons ...
 
+// ... inside loadEval, scroll to the button rendering section ...
+
 h += `<div style="margin-top:48px; padding-top:32px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:16px;">`;
 
-// 1. EDIT MODE BUTTONS (Draft / Returned / Submitted to Manager)
+// 1. SUBMIT BUTTONS (For Employee or Manager)
 if (canEdit) {
     h += `<button class="btn btn-outline" onclick="saveDraft()"><i class="fa-regular fa-floppy-disk"></i> &nbsp; Save Draft</button>`;
     
@@ -2888,30 +2890,33 @@ if (canEdit) {
     if (viewingSelf) btnText = isCEO ? "Submit" : "Submit to Manager";
     else if (isDirectSupervisor) btnText = "Approve & Submit to HR";
     
-    // ADDED ID 'btn-submit-final' here to target it later
     h += `<button id="btn-submit-final" class="btn btn-primary" style="padding:12px 32px; font-size:1rem;" onclick="submitFinal()"><i class="fa-solid fa-paper-plane"></i> &nbsp; ${btnText}</button>`;
 }
 
-// 2. NEW: WAITING FOR HR STATE (For Managers)
-// If I am the manager, and I have already submitted it (Status is Submitted to HR), show disabled button
+// 2. MANAGER WAITING STATE (Priority Rule)
+// If I am the manager, and it's at HR, I must wait (even if I am an Admin).
+// I must go to the Admin Panel to override this.
 if (isDirectSupervisor && stat === 'Submitted to HR') {
     h += `<button class="btn btn-primary" disabled style="padding:12px 32px; font-size:1rem; background:#e2e8f0; border-color:#e2e8f0; color:#94a3b8; cursor:not-allowed;">
             <i class="fa-solid fa-clock"></i> &nbsp; Waiting for HR Approval
           </button>`;
 }
 
-// 3. REJECT BUTTON (For Managers reviewing Drafts)
+// 3. MANAGER REJECT BUTTON
 if (isDirectSupervisor && stat === 'Submitted to Manager') {
     h += `<button class="btn btn-outline" style="color:var(--danger); border-color:#fee2e2; background:#fff1f2;" onclick="rejectCard()"><i class="fa-solid fa-ban"></i> &nbsp; Reject / Request Changes</button>`;
 }
 
-// 4. HR ADMIN ACTIONS (Reject to Manager / Final Approve)
-if ((uRole === 'Admin' || uRole === 'Master') && stat === 'Submitted to HR') {
+// 4. HR ADMIN ACTIONS
+// CRITICAL FIX: Add "&& !isDirectSupervisor"
+// This ensures that if I am looking at my own team member, I don't see these buttons here.
+// I must approve them from the Admin Dashboard table instead.
+if ((uRole === 'Admin' || uRole === 'Master') && stat === 'Submitted to HR' && !isDirectSupervisor) {
     h += `<button class="btn btn-outline" style="color:var(--danger); border-color:#fee2e2; background:#fff1f2;" onclick="rejectToManager('${targetUser[COL.id]}')"><i class="fa-solid fa-rotate-left"></i> &nbsp; Reject to Manager</button>`;
     h += `<button class="btn btn-primary" style="background:var(--success); border:none;" onclick="submitFinal()"><i class="fa-solid fa-check"></i> &nbsp; Final Approve (HR)</button>`;
 }
 
-h += `</div></div>`; // Close container and animate-in div
+h += `</div></div>`; // Close container
 
                 render(h);
                 if (w.i > 0 && !managerBlocked) renderGoals(canEdit);
@@ -3629,6 +3634,7 @@ h += `</div></div>`; // Close container and animate-in div
 </body>
 
 </html>
+
 
 
 
