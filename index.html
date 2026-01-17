@@ -1830,22 +1830,22 @@ async function fetchAllData() {
             renderDirectoryTable(filtered);
         }
 
-        function renderDirectoryTable(list) {
-            document.getElementById('dir-tbody').innerHTML = list.map(u => `
-            <tr>
-                <td style="font-weight:700; font-family:monospace; color:var(--primary);">${u[COL.id]}</td>
-                <td style="font-weight:600;">${u[COL.name] || 'Unknown'}</td>
-                <td>${u[COL.job] || '-'}</td>
-                <td>${u[COL.div] || '-'}</td>
-                <td>${u[COL.mgr] || '-'}</td>
-                <td style="text-align:right;">
-                    <button class="btn btn-outline" style="padding:4px 8px; font-size:0.8rem; height:auto;" onclick="openUserModal('${u[COL.id]}')"><i class="fa-solid fa-pen"></i></button>
-                    <button class="btn btn-outline" style="padding:4px 8px; font-size:0.8rem; height:auto; color:var(--danger); border-color:#fee2e2; background:#fff1f2;" onclick="deleteUser('${u[COL.id]}')"><i class="fa-solid fa-trash"></i></button>
-                </td>
-            </tr>
-        `).join('');
-        }
-
+        // Replace hardcoded property names with COL mapping
+function renderDirectoryTable(list) {
+    document.getElementById('dir-tbody').innerHTML = list.map(u => `
+    <tr>
+        <td style="font-weight:700;">${u[COL.id] || '-'}</td>
+        <td style="font-weight:600;">${u[COL.name] || 'No Name'}</td>
+        <td>${u[COL.job] || '-'}</td>
+        <td>${u[COL.div] || '-'}</td>
+        <td>${u[COL.mgr] || '-'}</td>
+        <td style="text-align:right;">
+            <button class="btn btn-outline" onclick="openUserModal('${u[COL.id]}')"><i class="fa-solid fa-pen"></i></button>
+            <button class="btn btn-outline" onclick="deleteUser('${u[COL.id]}')"><i class="fa-solid fa-trash"></i></button>
+        </td>
+    </tr>
+    `).join('');
+}
         // Modal Functions
         function openUserModal(id = null) {
             document.getElementById('modal-overlay').classList.add('open');
@@ -2519,16 +2519,25 @@ async function loadReports() {
         </div>`;
 
     // 2. Fetch Fresh Data
-    try { allCompanyData = await fetchAllData(); } catch (e) { console.error(e); }
+   try { 
+        allCompanyData = await fetchAllData(); 
+    } catch (e) { 
+        console.error(e); 
+    }
 
-    // 3. Filter Direct Reports
-    const myId = user[COL.id].toString().toLowerCase();
-    const myName = user[COL.name].toString().toLowerCase();
+    // SAFE ACCESS: Check if user and the specific ID column exist before calling .toString()
+    const myRawId = user && user[COL.id] ? user[COL.id] : "";
+    const myId = myRawId.toString().toLowerCase();
+    
+    const myRawName = user && user[COL.name] ? user[COL.name] : "";
+    const myName = myRawName.toString().toLowerCase();
+
     let directReports = allCompanyData.filter(u => {
-        const m = (u[COL.mgr] || "").toString().toLowerCase();
+        // Safe check for manager data
+        const mRaw = u[COL.mgr] || "";
+        const m = mRaw.toString().toLowerCase();
         return m.includes(myId) || (myName.length > 3 && m.includes(myName));
     });
-
     if (!directReports || directReports.length === 0) {
         document.getElementById('main-view').innerHTML = `<div class="card" style="padding:40px; text-align:center;">No direct reports found.</div>`;
         return;
@@ -3740,6 +3749,7 @@ h += `</div></div>`; // Close container
     </style>
 </body>
 </html>
+
 
 
 
