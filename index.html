@@ -2595,27 +2595,33 @@ const systemEmail = `${cleanId}@zainpms.com`;
         // --- RECURSIVE ORG FETCH ---
 // --- RECURSIVE ORG FETCH (Fixed & Safe) ---
 // --- 1. RECURSIVE ORG FETCH (ID + NAME MATCHING) ---
+// --- 1. RECURSIVE ORG FETCH (Improved: Matches ID AND Name) ---
 function getDownstream(rootId, allData) {
     let subordinates = [];
     
-    // Find the root user to get their Name (for fuzzy matching)
+    // Find the root user first to get their Name (for text matching)
     const rootUser = allData.find(u => u[COL.id] == rootId);
-    if (!rootUser) return [];
+    
+    // Queue stores objects: { id, name } to search for in the next level
+    let queue = [];
+    if (rootUser) {
+        queue.push({ 
+            id: (rootUser[COL.id] || "").toString().toLowerCase().trim(), 
+            name: (rootUser[COL.name] || "").toString().toLowerCase().trim() 
+        });
+    } else {
+        // Fallback if root not found (unlikely)
+        queue.push({ id: rootId.toString().toLowerCase().trim(), name: "" }); 
+    }
 
-    // Queue stores { id, name } pairs to search for
-    let queue = [{ 
-        id: (rootUser[COL.id] || "").toString().toLowerCase().trim(), 
-        name: (rootUser[COL.name] || "").toString().toLowerCase().trim() 
-    }];
-
-    // Track visited IDs to prevent infinite loops
+    // Track visited IDs to prevent infinite loops (Circular reporting)
     let visited = new Set();
     visited.add(queue[0].id);
 
     while (queue.length > 0) {
-        let current = queue.shift();
+        let current = queue.shift(); // Get current manager to search for
         
-        // Find everyone reporting to the Current Manager
+        // Find everyone whose "Supervisor" column matches this manager
         let direct = allData.filter(u => {
             const uId = (u[COL.id] || "").toString().toLowerCase().trim();
             
@@ -2628,6 +2634,7 @@ function getDownstream(rootId, allData) {
             const matchID = current.id && mgrField.includes(current.id);
             
             // MATCH 2: Name Match (e.g., "Ali Maky" inside "Ali Maky (ZIQ123)")
+            // We ensure name is > 3 chars to avoid matching short strings like "Ali" accidentally
             const matchName = (current.name.length > 3) && mgrField.includes(current.name);
 
             return matchID || matchName;
@@ -2636,23 +2643,24 @@ function getDownstream(rootId, allData) {
         direct.forEach(d => {
             subordinates.push(d);
             
-            // Mark as visited
+            // Mark as visited so we don't count them again
             const dId = (d[COL.id] || "").toString().toLowerCase().trim();
-            visited.add(dId);
-
-            // Add this employee to the queue to find THEIR reports (Next Level)
-            queue.push({ 
-                id: dId, 
-                name: (d[COL.name] || "").toString().toLowerCase().trim() 
-            });
+            if (dId) {
+                visited.add(dId);
+                // Add this employee to the queue to find THEIR reports (Next Level)
+                queue.push({ 
+                    id: dId, 
+                    name: (d[COL.name] || "").toString().toLowerCase().trim() 
+                });
+            }
         });
     }
     return subordinates;
 }
 
-// --- 2. REPORTS LOADING (UPDATED VISIBILITY) ---
+// --- 2. REPORTS LOADING (With Forced Org Chart Visibility) ---
 async function loadReports() {
-    // Ensure Data
+    // 1. Ensure Data is Loaded
     if (allCompanyData.length === 0) {
         document.getElementById('main-view').innerHTML = `<div class="spinner" style="margin:50px auto;"></div>`;
         allCompanyData = await fetchAllData();
@@ -2661,7 +2669,7 @@ async function loadReports() {
     const myId = user[COL.id].toString().toLowerCase();
     const myName = (user[COL.name] || "").toString().toLowerCase();
 
-    // 1. Get Direct Reports (Level 1)
+    // 2. Get Direct Reports (Level 1)
     let directReports = allCompanyData.filter(u => {
         const m = (u[COL.mgr] || "").toString().toLowerCase();
         return m.includes(myId) || (myName.length > 3 && m.includes(myName));
@@ -2677,7 +2685,7 @@ async function loadReports() {
         return;
     }
 
-    // 2. Get Total Organization (Recursive Level 1, 2, 3...)
+    // 3. Get Total Organization (Recursive Level 1, 2, 3...)
     globalReports = getDownstream(user[COL.id], allCompanyData);
 
     // Filter Logic: CCO/Commercial excludes Security
@@ -2686,8 +2694,9 @@ async function loadReports() {
         globalReports = globalReports.filter(u => !((u[COL.div] || "").toUpperCase().includes('SECURITY')));
     }
 
-    // 3. VISIBILITY LOGIC: Always show Org Chart if ANY reports exist
-    let showOrgChart = (globalReports.length > 0);
+    // 4. VISIBILITY LOGIC: Always show Org Chart if ANY reports exist
+    // This ensures filters are visible even if the numbers are currently identical
+    let showOrgChart = (directReports.length > 0);
 
     // --- Prepare Chart Data ---
     const globalRating = masterData.rating || 0;
@@ -3799,6 +3808,7 @@ diagnoseTeam();
 </body>
 
 </html>
+
 
 
 
