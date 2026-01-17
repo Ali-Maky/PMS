@@ -1633,13 +1633,24 @@
         }
 
         function getCompany(id) {
-            if (!id) return "Unknown";
-            const clean = id.toString().toUpperCase().trim();
-            if (clean.startsWith("ZIQ")) return "Zain Iraq";
-            if (clean.startsWith("HISP")) return "Horizon";
-            if (clean.startsWith("NG")) return "Next Generation";
-            return "Other";
-        }
+    if (!id) return "Unknown";
+    const clean = id.toString().toUpperCase().trim();
+
+    // 1. Zain Iraq Check (ZIQ & ZIQT)
+    if (clean.includes("ZIQ") || clean.includes("ZIQT")) {
+        return "Zain Iraq";
+    }
+
+    // 2. Horizon Check (HISP, HCS, AWO)
+    if (clean.includes("HISP") || clean.includes("HCS") || clean.includes("AWO")) {
+        return "Horizon";
+    }
+
+    // 3. Next Generation Check (NG, NGM, NGT)
+    if (clean.includes("NG")) return "Next Generation";
+
+    return "Other";
+}
 
         async function launchApp() {
             document.getElementById('loading-overlay').classList.add('hidden');
@@ -3645,6 +3656,7 @@ h += `</div></div>`; // Close container
 </body>
 
 </html>
+
 
 
 
