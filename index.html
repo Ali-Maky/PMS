@@ -1531,26 +1531,61 @@
         let hasDraft = false;
         let saveTimer;
         let chart1, chartAdmin, chartOrg;
-        let COL = { id: 'id', name: 'name', lvl: 'level', job: 'job', mgr: 'manager_id', stat: 'status', goals: 'goals', div: 'division', dept: 'department', pass: 'password', role: 'access_role' };
+       // REPLACE your old 'let COL = ...' with this:
+
+const COL = { 
+    id: "Employee Number",      // <--- THIS FIXES THE 400 ERROR
+    name: "Name", 
+    lvl: "Level", 
+    job: "Job", 
+    mgr: "Supervisor", 
+    div: "Division", 
+    dept: "Department", 
+    stat: "status",
+    goals: "goals", 
+    pass: "password", 
+    role: "access_role" 
+};
         let adminCache = [];
         let allCompanyData = [];
         let globalReports = [];
 
         // --- 2. INIT ---
-        window.onload = async function () {
-            if (SUPABASE_URL.includes("YOUR")) alert(" Please update Supabase Keys in the code!");
-            db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+     window.onload = async function () {
+    // 1. Initialize DB
+    if (SUPABASE_URL.includes("YOUR")) alert("Please update Supabase Keys!");
+    db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-            await mapColumns();
-            const { data: sg } = await db.from('company_settings').select('data').eq('id', SHARED_GOALS_ID).single();
-            if (sg && sg.data) {
-                if (Array.isArray(sg.data)) masterData = { rating: 0, goals: sg.data }; else masterData = sg.data;
-            } else { masterData = { rating: 0, goals: [] }; }
+    // 2. Map Columns & Load Data
+    // await mapColumns();
+    
+    // Load Shared Goals
+    const { data: sg } = await db.from('company_settings').select('data').eq('id', SHARED_GOALS_ID).single();
+    if (sg && sg.data) {
+        masterData = Array.isArray(sg.data) ? { rating: 0, goals: sg.data } : sg.data;
+    } else {
+        masterData = { rating: 0, goals: [] };
+    }
 
-            const uid = localStorage.getItem('zpms_uid');
-            if (uid && (Date.now() - localStorage.getItem('zpms_time') < IDLE_LIMIT)) restoreSession(uid);
-            else showLogin();
-        }
+    // 3. AUTH CHECK (Fixed)
+    // We use a specific variable name 'authResponse' to avoid conflict errors
+    const authResponse = await db.auth.getSession();
+    const session = authResponse.data.session;
+
+    if (session) {
+        // User is logged in via Supabase Auth
+        const email = session.user.email;
+        
+        // Extract the ID safely (Remove @zainpms.com)
+        let restoredId = email.split('@')[0].toUpperCase();
+        
+        // Restore the session using the ID
+        restoreSession(restoredId);
+    } else {
+        // No session, show login screen
+        showLogin();
+    }
+}
 
         async function mapColumns() {
             const { data } = await db.from('active_list').select('*').limit(1);
@@ -1581,40 +1616,132 @@
 
         function showLogin() { document.getElementById('loading-overlay').classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden'); }
         function startIdleTimer() { ['click', 'keydown'].forEach(e => window.addEventListener(e, () => localStorage.setItem('zpms_time', Date.now()))); }
-        function logout() { localStorage.clear(); location.reload(); }
+        async function logout() {
+    await db.auth.signOut(); // Secure sign out
+    localStorage.clear();
+    location.reload();
+}
 
         // --- 3. AUTH & ROUTING ---
-        async function checkID() {
-            const id = document.getElementById('inp-id').value.trim();
-            const btn = document.getElementById('btn-check');
-            if (!id) return;
-            btn.innerText = "Checking...";
-            const { data, error } = await db.from('active_list').select('*').eq(COL.id, id).single();
-            if (error || !data) { btn.innerText = "Continue"; document.getElementById('err-id').innerText = "ID not found"; document.getElementById('err-id').style.display = 'block'; return; }
+       async function checkID() {
+    const idInput = document.getElementById('inp-id').value.trim();
+    const btn = document.getElementById('btn-check');
+    const err = document.getElementById('err-id');
+    
+    if (!idInput) return;
+    
+    btn.innerText = "Checking...";
+    err.style.display = 'none';
 
-            user = data;
-            document.getElementById('view-id').classList.add('hidden');
-            document.getElementById('view-pass').classList.remove('hidden');
+    try {
+        // CALL THE NEW SECURE RPC FUNCTION
+        // This bypasses the RLS lock safely
+        const { data, error } = await db.rpc('get_user_login_info', { 
+            lookup_id: idInput 
+        });
 
-            if (!(user[COL.pass] || user['password'])) {
-                isRegistering = true;
-                document.getElementById('lbl-welcome').innerText = "Set Password";
-                document.getElementById('grp-confirm').classList.remove('hidden');
-                document.getElementById('btn-login').innerText = "Create & Login";
-            }
+        if (error) throw error;
+
+        // If no data returned, ID doesn't exist
+        if (!data || data.length === 0) {
+            throw new Error("ID not found");
         }
 
-        async function doLogin() {
-            const p1 = document.getElementById('inp-pass').value;
-            if (isRegistering) {
-                if (p1 !== document.getElementById('inp-confirm').value) { alert("Passwords match error"); return; }
-                await db.from('active_list').update({ password: p1 }).eq(COL.id, user[COL.id]);
+        const found = data[0];
+
+        // POPULATE THE GLOBAL USER OBJECT
+        // We map the RPC results back to your app's expected format
+        user = {
+            [COL.id]: found.found_id,
+            [COL.name]: found.found_name,
+            [COL.pass]: found.found_pass,
+            // Store migration status for doLogin logic
+            _is_migrated: found.is_migrated 
+        };
+
+        // UI TRANSITION
+        document.getElementById('view-id').classList.add('hidden');
+        document.getElementById('view-pass').classList.remove('hidden');
+        
+        // Update Welcome Message
+        document.getElementById('lbl-welcome').innerText = `Hello, ${found.found_name.split(' ')[0]}`;
+        
+        // Auto-focus password field
+        setTimeout(() => document.getElementById('inp-pass').focus(), 100);
+
+    } catch (e) {
+        console.error("CheckID Error:", e);
+        btn.innerText = "Continue";
+        err.innerText = "ID not found"; // e.message if you want specific errors
+        err.style.display = 'block';
+    }
+}
+
+    async function doLogin() {
+    const p1 = document.getElementById('inp-pass').value;
+    const empId = user[COL.id];
+    
+    // 1. Construct a "System Email" based on ID
+    // We use a fake domain because Supabase requires an email format
+    // OLD LINE (Delete this):
+// const systemEmail = `${empId}@system.local`.trim();
+
+// NEW LOGIC (Paste this):
+// 1. Remove ANY characters that aren't letters or numbers (removes spaces, dashes, etc.)
+const cleanId = empId.toString().replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+
+// 2. Use a standard domain format that passes all validators
+const systemEmail = `${cleanId}@zainpms.com`;
+
+    const btn = document.getElementById('btn-login');
+    btn.innerText = "Verifying...";
+    btn.disabled = true;
+
+    try {
+        // --- ATTEMPT 1: Try Standard Supabase Login ---
+        let { data, error } = await db.auth.signInWithPassword({
+            email: systemEmail,
+            password: p1
+        });
+
+        // --- ATTEMPT 2: Auto-Migration (First time user) ---
+        if (error && error.message.includes("Invalid login")) {
+            // User might not exist in Auth yet. verify against OLD DB one last time.
+            const oldPass = user[COL.pass] || user['password'];
+            
+            if (p1 === oldPass) {
+                // OLD PASSWORD MATCHES! Migrating user to Secure Auth...
+                const { data: signUpData, error: signUpError } = await db.auth.signUp({
+                    email: systemEmail,
+                    password: p1
+                });
+                
+                if (signUpError) throw signUpError;
+                
+                // If migration successful, data will contain the session
+                data = signUpData;
+                error = null;
+                console.log("User successfully migrated to Supabase Auth");
             } else {
-                if (p1 !== (user[COL.pass] || user['password'])) { alert("Incorrect Password"); return; }
+                throw new Error("Incorrect Password");
             }
-            localStorage.setItem('zpms_uid', user[COL.id]); localStorage.setItem('zpms_time', Date.now());
-            startIdleTimer(); launchApp();
+        } else if (error) {
+            throw error; // Throw other errors (like network issues)
         }
+
+        // --- SUCCESS ---
+        // If we are here, 'data.session' exists.
+        localStorage.setItem('zpms_time', Date.now()); // Keep idle timer
+        startIdleTimer();
+        launchApp();
+
+    } catch (err) {
+        document.getElementById('err-pass').style.display = 'block';
+        document.getElementById('err-pass').innerText = err.message || "Login Failed";
+        btn.innerText = "Log In";
+        btn.disabled = false;
+    }
+}
 
         // --- BATCHED FETCH HELPER ---
         async function fetchAllData() {
@@ -2701,50 +2828,72 @@
             chartOrg.update();
         }
 
-        async function loadTeam() {
-            const myId = user[COL.id];
-            const myName = user[COL.name];
-            let filter = `${COL.mgr}.ilike.%${myId}%`;
-            if (myName) filter += `,${COL.mgr}.ilike.%${myName}%`;
+      async function loadTeam() {
+    // 1. UI Loading State
+    document.getElementById('main-view').innerHTML = `
+        <div class="animate-in">
+            <div class="header-bar">
+                <div><h2 class="page-title">My Team</h2><p class="page-sub">Direct Reports & Scorecards</p></div>
+            </div>
+            <div class="team-grid" id="team-grid-container">
+                <div style="padding:40px; text-align:center; color:var(--text-muted);">
+                    <div class="spinner" style="margin:0 auto 20px auto; width:30px; height:30px;"></div>
+                    Loading direct reports...
+                </div>
+            </div>
+        </div>`;
 
-            const { data } = await db.from('active_list').select('*').or(filter);
+    try {
+        // 2. CALL THE SECURE FUNCTION (RPC)
+        // This is the magic line that fixes the timeout/crash
+        const { data, error } = await db.rpc('get_my_team_secure');
 
-            let h = `
-                <div class="animate-in">
-                    <div class="header-bar">
-                        <div><h2 class="page-title">My Team</h2><p class="page-sub">Direct Reports & Scorecards</p></div>
+        if (error) throw error;
+
+        // 3. Render Results
+        const container = document.getElementById('team-grid-container');
+        
+        // Filter out "Myself" if the fuzzy match accidentally caught my own row
+        const myId = user[COL.id] || '';
+        const teamMembers = (data || []).filter(e => e[COL.id] !== myId);
+
+        if (teamMembers.length > 0) {
+            container.innerHTML = teamMembers.map(e => {
+                let isSub = e[COL.stat] === 'Submitted to Manager';
+                let isApp = e[COL.stat] === 'Approved';
+                let statClass = isApp ? 'approved' : (isSub ? 'submitted' : 'draft');
+                let dispName = (e[COL.name] || 'Unknown').split('(')[0];
+
+                return `
+                <div class="premium-team-card animate-in" onclick="loadEval('${e[COL.id]}')">
+                    <div class="pt-status status-badge ${statClass}">${e[COL.stat] || 'Draft'}</div>
+                    <div class="pt-avatar">${dispName.charAt(0)}</div>
+                    <div class="pt-info">
+                        <div class="pt-name">${dispName}</div>
+                        <div class="pt-role">${e[COL.job] || 'Staff'}</div>
+                        <div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">${e[COL.id]}</div>
                     </div>
-                    <div class="team-grid">`;
-
-            if (data && data.length > 0) {
-                data.forEach(e => {
-                    let isSub = e[COL.stat] === 'Submitted to Manager';
-                    let isApp = e[COL.stat] === 'Approved';
-                    let statClass = 'draft';
-                    if (isSub) statClass = 'submitted';
-                    if (isApp) statClass = 'approved';
-
-                    h += `
-                    <div class="premium-team-card" onclick="loadEval('${e[COL.id]}')">
-                        <div class="pt-status status-badge ${statClass}">${e[COL.stat] || 'Draft'}</div>
-                        <div class="pt-avatar">${e[COL.name].charAt(0)}</div>
-                        <div class="pt-info">
-                            <div class="pt-name">${e[COL.name].split('(')[0]}</div>
-                            <div class="pt-role">${e[COL.job] || 'Staff'}</div>
-                            <div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">${e[COL.id]}</div>
-                        </div>
-                        <div style="border-top:1px solid var(--border); padding-top:16px; display:flex; justify-content:center;">
-                            <button class="btn btn-outline" style="width:100%; justify-content:center; font-size:0.9rem;">View Scorecard</button>
-                        </div>
-                    </div>`;
-                });
-            } else {
-                h += `<div class="empty-state-message">No direct reports found.</div>`;
-            }
-            h += `</div></div>`;
-            render(h);
+                    <div style="border-top:1px solid var(--border); padding-top:16px; display:flex; justify-content:center;">
+                        <button class="btn btn-outline" style="width:100%; font-size:0.9rem;">View Scorecard</button>
+                    </div>
+                </div>`;
+            }).join('');
+        } else {
+            container.innerHTML = `
+                <div class="empty-state-message" style="grid-column:1/-1; text-align:center; padding:40px; color:var(--text-muted);">
+                    <i class="fa-solid fa-users-slash" style="font-size:2rem; margin-bottom:16px; opacity:0.3;"></i><br>
+                    No direct reports found.
+                </div>`;
         }
 
+    } catch (err) {
+        console.error("Team Load Error:", err);
+        document.getElementById('team-grid-container').innerHTML = `
+            <div style="color:var(--danger); padding:20px; background:#fee2e2; border-radius:12px; text-align:center; grid-column:1/-1;">
+                <strong>Error loading team:</strong><br>${err.message}
+            </div>`;
+    }
+}
         // --- 9. SCORECARD ---
         async function loadEval(tid, isSearchMode = false) {
             try {
@@ -3601,6 +3750,30 @@
             transform: scale(1) !important;
             opacity: 1 !important;
         }
+// Check what the database actually sees in the Supervisor column
+async function diagnoseTeam() {
+    console.log("--- DIAGNOSIS START ---");
+    
+    // 1. Check your own ID and Name
+    console.log("My ID:", user[COL.id]);
+    console.log("My Name:", user[COL.name]);
+
+    // 2. Fetch ANY 5 rows where Supervisor is not empty (Bypassing filter for a moment)
+    // We try to grab the first 5 people in the company to see their Supervisor format
+    const { data, error } = await db.from('active_list')
+                                    .select('Name, Supervisor')
+                                    .not('Supervisor', 'is', null)
+                                    .limit(5);
+
+    if (error) {
+        console.error("Blocker:", error.message);
+        alert("Diagnosis Blocked: " + error.message);
+    } else {
+        console.table(data);
+        alert("Check the Console (F12) to see the Supervisor column format!");
+    }
+}
+diagnoseTeam();
     </style>
 </body>
 
