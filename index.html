@@ -2790,7 +2790,7 @@ async function loadReports() {
                                 ${isSearchMode ? ' <span class="draft-badge"><i class="fa-solid fa-eye"></i> Read-Only</span>' : ''}
                             </p>
                         </div>
-                        ${isManager ? `<button onclick="${['Admin', 'Master'].includes(uRole) ? 'loadHRAdmin()' : 'loadTeam()'}" class="btn btn-outline"><i class="fa-solid fa-arrow-left"></i> &nbsp; Back to List</button>` : ''}
+                        ${isManager ? `<button onclick="${isDirectSupervisor ? 'loadTeam()' : 'loadHRAdmin()'}" class="btn btn-outline"><i class="fa-solid fa-arrow-left"></i> &nbsp; Back to List</button>` : ''}
                     </div>
                    
                     <div class="metrics-row">
@@ -3594,5 +3594,6 @@ async function loadReports() {
 </body>
 
 </html>
+
 
 
