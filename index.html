@@ -1709,7 +1709,7 @@
             if (SUPABASE_URL.includes("YOUR")) alert(" Please update Supabase Keys in the code!");
             db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-            await mapColumns();
+            // await mapColumns(); // DEFERRED: Run this after authentication to avoid 500 Error
             const { data: sg } = await db.from('company_settings').select('data').eq('id', SHARED_GOALS_ID).single();
             if (sg && sg.data) {
                 if (Array.isArray(sg.data)) masterData = { rating: 0, goals: sg.data }; else masterData = sg.data;
@@ -1757,41 +1757,76 @@
         }
 
         async function mapColumns() {
-            // Try to auto-detect
-            const { data } = await db.from('active_list').select('*').limit(1);
-            if (data && data[0]) {
-                const r = data[0];
+            // RLS FIX: Instead of fetching a random row (which might fail or be empty),
+            // we use the 'user' object which we ALREADY have from checkID() or restoreSession().
+
+            let dataRow = user;
+
+            // If user is not set yet (edge case), try fetch but handle error
+            // If user is not set yet, we CANNOT fetch due to RLS 500 Error.
+            // We simply skip mapping and rely on defaults until user is loaded.
+            if (!dataRow) {
+                console.warn("MapColumns: User not ready. Skipping.");
+                return;
+            }
+
+            if (dataRow) {
+                const r = dataRow;
                 const keys = Object.keys(r);
-                const findCol = (terms) => keys.find(k => terms.some(t => k.toLowerCase().includes(t.toLowerCase())));
 
-                if (r['Employee Number']) COL.id = 'Employee Number';
-                else if (r['ID']) COL.id = 'ID';
+                // --- IMPROVED MAPPER (Fuzzy Matching) ---
+                const findCol = (terms) => keys.find(k => terms.some(t => k.toLowerCase() === t.toLowerCase() || k.toLowerCase().includes(t.toLowerCase())));
 
-                if (r['Name']) COL.name = 'Name';
-                if (r['Level']) COL.lvl = 'Level';
-                if (r['Job']) COL.job = 'Job';
-                if (r['Division']) COL.div = 'Division';
-                if (r['Department']) COL.dept = 'Department';
+                // ID
+                const idCol = findCol(['Employee Number', 'EmpID', 'User ID', 'ID', 'EmployeeID']);
+                if (idCol) COL.id = idCol;
 
-                const mgrCol = findCol(['supervisor', 'manager', 'reports to', 'direct manager']);
+                // Name
+                const nameCol = findCol(['Full Name', 'Employee Name', 'Name', 'FullName']);
+                if (nameCol) COL.name = nameCol;
+
+                // Level
+                const lvlCol = findCol(['Level', 'Grade', 'Lvl']);
+                if (lvlCol) COL.lvl = lvlCol;
+
+                // Job
+                const jobCol = findCol(['Job Title', 'Job', 'Title', 'Position', 'Role']);
+                if (jobCol) COL.job = jobCol;
+
+                // Division
+                const divCol = findCol(['Division', 'Div', 'Function']);
+                if (divCol) COL.div = divCol;
+
+                // Department
+                const deptCol = findCol(['Department', 'Dept']);
+                if (deptCol) COL.dept = deptCol;
+
+                // Manager
+                const mgrCol = findCol(['Direct Manager', 'Manager', 'Supervisor', 'Reports To', 'Manager ID']);
                 if (mgrCol) COL.mgr = mgrCol;
-                else COL.mgr = 'Manager'; // Default fallback
+                else COL.mgr = 'Manager'; // Fallback
 
-                const roleCol = findCol(['access_role', 'role', 'permission']);
+                // Role
+                const roleCol = findCol(['access_role', 'role', 'permission', 'System Role']);
                 if (roleCol) COL.role = roleCol;
+
+                console.log("Mapped Columns:", COL);
             } else {
-                // FALLBACK IF RLS BLOCKS AUTO-DETECT
-                // We assume standard names or what user manually set
-                console.warn("Auto-map failed (likely RLS). Using defaults.");
-                COL.id = 'Employee Number'; // <--- ADJUST THIS IF NEEDED
-                COL.mgr = 'Manager';        // <--- ADJUST THIS IF NEEDED
+                console.warn("MapColumns: No data available to map. Using defaults.");
+                COL.id = 'Employee Number';
+                COL.mgr = 'Manager';
             }
         }
 
         async function restoreSession(id) {
             // Use RPC for restore as well if RLS blocks direct select
             const { data, error } = await db.rpc('get_user_by_id', { lookup_id: id });
-            if (data && data[0]) { user = data[0]; startIdleTimer(); launchApp(); }
+            if (data && data[0]) {
+                user = data[0];
+                await mapColumns(); // Map columns now that we have data
+                startIdleTimer();
+                launchApp();
+            }
             else showLogin();
         }
 
@@ -1818,6 +1853,7 @@
             }
 
             user = data[0];
+            await mapColumns(); // Map columns now that we have data
             document.getElementById('view-id').classList.add('hidden');
             document.getElementById('view-pass').classList.remove('hidden');
 
@@ -1903,12 +1939,19 @@
                 if (signUpData?.user) {
                     // We need to sign in immediately if auto-confirm is on, or wait.
                     // Assuming Supabase project has "Enable Confirm Email" OFF for this intranet app.
-                    const { error: updateError } = await db.from('active_list').update({
-                        auth_user_id: signUpData.user.id,
-                        password: null // OPTIONAL: Clear legacy password for security? Maybe keep as backup for now.
-                    }).eq(COL.id, user[COL.id]);
 
-                    if (updateError) console.warn("Failed to link Auth ID:", updateError);
+                    // RLS FIX: Client-side UPDATE usually fails here because the user cannot "see" the row yet (auth_user_id is null).
+                    // We use a Secure RPC instead.
+                    const { error: linkError } = await db.rpc('link_user_account', {
+                        employee_id: user[COL.id].toString()
+                    });
+
+                    if (linkError) {
+                        console.warn("Failed to link Auth ID via RPC:", linkError);
+                        // Fallback to old method just in case, or alert
+                    } else {
+                        console.log("Account linked successfully via RPC.");
+                    }
                 }
 
                 // Success
@@ -1927,16 +1970,38 @@
 
         // --- BATCHED FETCH HELPER ---
         async function fetchAllData() {
+            // RLS CHECK: If user is not Admin/Master, fetchAllData will likely fail or return limited rows.
+            // We should only attempt this if we have permission or need it.
+            // For now, we wrap in try-catch and return empty if error, to prevent app crash.
+
             let allRows = [];
             let from = 0;
             const step = 1000;
-            while (true) {
-                const { data, error } = await db.from('active_list').select('*').range(from, from + step - 1);
-                if (error) { console.error(error); return []; }
-                if (!data || data.length === 0) break;
-                allRows = allRows.concat(data);
-                if (data.length < step) break;
-                from += step;
+
+            try {
+                // Heuristic: If we are just a normal user, RLS prevents reading everyone.
+                // Maybe we just skip this for non-admins to save bandwidth/errors.
+                const role = user[COL.role] || 'User';
+                if (role !== 'Admin' && role !== 'Master') {
+                    // console.log("Skipping full company fetch for non-admin.");
+                    return [];
+                }
+
+                while (true) {
+                    const { data, error } = await db.from('active_list').select('*').range(from, from + step - 1);
+                    if (error) {
+                        console.warn("FetchAllData Partial Error (RLS?):", error.message);
+                        // If RLS blocks, we might get an error. Return what we have or empty.
+                        return allRows;
+                    }
+                    if (!data || data.length === 0) break;
+                    allRows = allRows.concat(data);
+                    if (data.length < step) break;
+                    from += step;
+                }
+            } catch (err) {
+                console.warn("FetchAllData Specific Error:", err);
+                return [];
             }
             return allRows;
         }
@@ -3126,7 +3191,24 @@
         // --- 9. SCORECARD ---
         async function loadEval(tid, isSearchMode = false) {
             try {
-                const { data, error } = await db.from('active_list').select('*').eq(COL.id, tid).single();
+                // RLS FIX: Use RPC primarily to avoid "500 Internal Server Error" from recursive policies
+                // The direct select causes infinite recursion in Supabase, so we use the secure function.
+                let data, error;
+                const { data: rpcData, error: rpcError } = await db.rpc('get_user_by_id', { lookup_id: tid });
+
+                if (rpcData && rpcData.length > 0) {
+                    data = rpcData[0];
+                    error = null;
+                } else if (rpcError) {
+                    // Only try direct select if RPC fails explicitly (rare)
+                    console.warn("RPC failed, trying direct select...", rpcError);
+                    const { data: directData, error: directError } = await db.from('active_list').select('*').eq(COL.id, tid).single();
+                    data = directData;
+                    error = directError;
+                } else {
+                    // RPC returned empty array, meaning ID not found
+                    error = { message: "Employee not found" };
+                }
 
                 if (error || !data) {
                     console.error("Load Error:", error);
@@ -3168,7 +3250,7 @@
                 }
                 if (isSearchMode) canEdit = false;
 
-                let mName = data[COL.mgr] || '-'; if (mName.includes('(')) mName = mName.split('(')[0];
+                let mName = (data[COL.mgr] || '-').toString(); if (mName.includes('(')) mName = mName.split('(')[0];
                 showScoreToViewer = (stat === 'Approved') || (isManager && !viewingSelf) || (['Admin', 'Master'].includes(uRole) && !viewingSelf) || (isManager && stat === 'Draft') || (isManager && stat === 'Submitted to Manager');
 
                 // --- COMPANY NAME LOGIC ---
@@ -3183,7 +3265,7 @@
                         <div>
                             <h2 class="page-title">${isManager ? 'Evaluation Portal' : 'My Scorecard'}</h2>
                             <p class="page-sub">
-                                <span style="font-weight:700; color:var(--text-main);">${data[COL.name].split('(')[0]}</span>
+                                <span style="font-weight:700; color:var(--text-main);">${(data[COL.name] || 'Unknown').toString().split('(')[0]}</span>
                                 <span style="margin:0 8px; color:var(--text-light);">•</span>
                                 <span class="status-badge ${stat === 'Approved' || stat.includes('HR') ? 'approved' : 'submitted'}">${stat}</span>
                                 ${isSearchMode ? ' <span class="draft-badge"><i class="fa-solid fa-eye"></i> Read-Only</span>' : ''}
