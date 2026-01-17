@@ -1773,7 +1773,7 @@ const systemEmail = `${cleanId}@zainpms.com`;
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('app-container').style.display = 'flex';
             document.getElementById('disp-user').innerText = user[COL.name];
-            document.getElementById('disp-role').innerText = user[COL.lvl];
+            document.getElementById('disp-role').innerText = (user[COL.job] || user[COL.lvl] || '');
 
             if (allCompanyData.length === 0) {
                 document.getElementById('save-text').innerText = "Syncing directory...";
@@ -3778,3 +3778,4 @@ diagnoseTeam();
 </body>
 
 </html>
+
