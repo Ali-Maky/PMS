@@ -2873,29 +2873,45 @@ async function loadReports() {
                     }
                 }
 
-                h += `<div style="margin-top:48px; padding-top:32px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:16px;">`;
+              // ... inside loadEval function, scroll down to where 'h' string is being built for buttons ...
 
-                if (canEdit) {
-                    h += `<button class="btn btn-outline" onclick="saveDraft()"><i class="fa-regular fa-floppy-disk"></i> &nbsp; Save Draft</button>`;
-                    let btnText = "Submit Scorecard";
-                    const j = (user[COL.job] || '').toString().toLowerCase();
-                    const isCEO = j === 'ceo' || j === 'chief executive officer';
+h += `<div style="margin-top:48px; padding-top:32px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:16px;">`;
 
-                    if (viewingSelf) btnText = isCEO ? "Submit" : "Submit to Manager";
-                    else if (isDirectSupervisor) btnText = "Approve & Submit to HR";
-                    h += `<button class="btn btn-primary" style="padding:12px 32px; font-size:1rem;" onclick="submitFinal()"><i class="fa-solid fa-paper-plane"></i> &nbsp; ${btnText}</button>`;
-                }
+// 1. EDIT MODE BUTTONS (Draft / Returned / Submitted to Manager)
+if (canEdit) {
+    h += `<button class="btn btn-outline" onclick="saveDraft()"><i class="fa-regular fa-floppy-disk"></i> &nbsp; Save Draft</button>`;
+    
+    let btnText = "Submit Scorecard";
+    const j = (user[COL.job] || '').toString().toLowerCase();
+    const isCEO = j === 'ceo' || j === 'chief executive officer';
 
-                if (isDirectSupervisor && stat === 'Submitted to Manager') {
-                    h += `<button class="btn btn-outline" style="color:var(--danger); border-color:#fee2e2; background:#fff1f2;" onclick="rejectCard()"><i class="fa-solid fa-ban"></i> &nbsp; Reject / Request Changes</button>`;
-                }
+    if (viewingSelf) btnText = isCEO ? "Submit" : "Submit to Manager";
+    else if (isDirectSupervisor) btnText = "Approve & Submit to HR";
+    
+    // ADDED ID 'btn-submit-final' here to target it later
+    h += `<button id="btn-submit-final" class="btn btn-primary" style="padding:12px 32px; font-size:1rem;" onclick="submitFinal()"><i class="fa-solid fa-paper-plane"></i> &nbsp; ${btnText}</button>`;
+}
 
-                if ((uRole === 'Admin' || uRole === 'Master') && stat === 'Submitted to HR') {
-                    h += `<button class="btn btn-outline" style="color:var(--danger); border-color:#fee2e2; background:#fff1f2;" onclick="rejectToManager('${targetUser[COL.id]}')"><i class="fa-solid fa-rotate-left"></i> &nbsp; Reject to Manager</button>`;
-                    h += `<button class="btn btn-primary" style="background:var(--success); border:none;" onclick="submitFinal()"><i class="fa-solid fa-check"></i> &nbsp; Final Approve (HR)</button>`;
-                }
+// 2. NEW: WAITING FOR HR STATE (For Managers)
+// If I am the manager, and I have already submitted it (Status is Submitted to HR), show disabled button
+if (isDirectSupervisor && stat === 'Submitted to HR') {
+    h += `<button class="btn btn-primary" disabled style="padding:12px 32px; font-size:1rem; background:#e2e8f0; border-color:#e2e8f0; color:#94a3b8; cursor:not-allowed;">
+            <i class="fa-solid fa-clock"></i> &nbsp; Waiting for HR Approval
+          </button>`;
+}
 
-                h += `</div></div>`; // Close animate-in
+// 3. REJECT BUTTON (For Managers reviewing Drafts)
+if (isDirectSupervisor && stat === 'Submitted to Manager') {
+    h += `<button class="btn btn-outline" style="color:var(--danger); border-color:#fee2e2; background:#fff1f2;" onclick="rejectCard()"><i class="fa-solid fa-ban"></i> &nbsp; Reject / Request Changes</button>`;
+}
+
+// 4. HR ADMIN ACTIONS (Reject to Manager / Final Approve)
+if ((uRole === 'Admin' || uRole === 'Master') && stat === 'Submitted to HR') {
+    h += `<button class="btn btn-outline" style="color:var(--danger); border-color:#fee2e2; background:#fff1f2;" onclick="rejectToManager('${targetUser[COL.id]}')"><i class="fa-solid fa-rotate-left"></i> &nbsp; Reject to Manager</button>`;
+    h += `<button class="btn btn-primary" style="background:var(--success); border:none;" onclick="submitFinal()"><i class="fa-solid fa-check"></i> &nbsp; Final Approve (HR)</button>`;
+}
+
+h += `</div></div>`; // Close container and animate-in div
 
                 render(h);
                 if (w.i > 0 && !managerBlocked) renderGoals(canEdit);
@@ -3143,54 +3159,73 @@ async function loadReports() {
         async function saveDraft() { autoSave(); }
 
         async function submitFinal() {
-            const w = getW(targetUser[COL.lvl], targetUser[COL.job]);
-            const allowedPct = w.i;
+    const w = getW(targetUser[COL.lvl], targetUser[COL.job]);
+    const allowedPct = w.i;
 
-            let currentSum = 0;
-            if (targetUser[COL.goals]) {
-                targetUser[COL.goals].forEach(g => currentSum += (g.weight || 0));
-            }
-            const currentPct = Math.round(currentSum * 100);
+    let currentSum = 0;
+    if (targetUser[COL.goals]) {
+        targetUser[COL.goals].forEach(g => currentSum += (g.weight || 0));
+    }
+    const currentPct = Math.round(currentSum * 100);
 
-            if (currentPct !== allowedPct) {
-                showToast(`Total Weight is ${currentPct}%. It must be ${allowedPct}%.`, 'error');
-                return;
-            }
+    if (currentPct !== allowedPct) {
+        showToast(`Total Weight is ${currentPct}%. It must be ${allowedPct}%.`, 'error');
+        return;
+    }
 
-            const myId = (user[COL.id] || '').toString();
-            const targetId = (targetUser[COL.id] || '').toString();
-            const viewingSelf = (myId === targetId);
+    const myId = (user[COL.id] || '').toString();
+    const targetId = (targetUser[COL.id] || '').toString();
+    const viewingSelf = (myId === targetId);
+    const uRole = getRole(user);
 
-            const uRole = getRole(user);
+    let confirmTitle = "Confirm Submission";
+    let confirmMsg = "Are you sure?";
+    let newStatus = "";
 
-            let confirmTitle = "Confirm Submission";
-            let confirmMsg = "Are you sure?";
-            let newStatus = "";
+    if (viewingSelf) {
+        confirmMsg = "Submit to Manager? You won't be able to edit this anymore.";
+        newStatus = "Submitted to Manager";
+    } else if (isDirectSupervisor) {
+        confirmMsg = "Approve & Submit to HR? Scores will be hidden until HR confirmation.";
+        newStatus = "Submitted to HR";
+    } else if (uRole === 'Admin' || uRole === 'Master') {
+        confirmTitle = "Final Approval";
+        confirmMsg = "Final Approve? This will reveal scores to the employee.";
+        newStatus = "Approved";
+    }
 
-            if (viewingSelf) {
-                confirmMsg = "Submit to Manager? You won't be able to edit this anymore.";
-                newStatus = "Submitted to Manager";
-            } else if (isDirectSupervisor) {
-                confirmMsg = "Approve & Submit to HR? Scores will be hidden until HR confirmation.";
-                newStatus = "Submitted to HR";
-            } else if (uRole === 'Admin' || uRole === 'Master') {
-                confirmTitle = "Final Approval";
-                confirmMsg = "Final Approve? This will reveal scores to the employee.";
-                newStatus = "Approved";
-            }
-
-            showConfirm(confirmTitle, confirmMsg, "Proceed", "primary", async () => {
-                let u = {}; u[COL.goals] = targetUser[COL.goals]; u[COL.stat] = newStatus;
-                const { error } = await db.from('active_list').update(u).eq(COL.id, targetUser[COL.id]);
-                if (error) {
-                    showToast("Error update status: " + error.message, 'error');
-                } else {
-                    showToast("Status updated to: " + newStatus, 'success');
-                    setTimeout(() => location.reload(), 1500);
-                }
-            });
+    showConfirm(confirmTitle, confirmMsg, "Proceed", "primary", async () => {
+        // --- 1. IMMEDIATE UI UPDATE (Disable Button) ---
+        const btn = document.getElementById('btn-submit-final');
+        if(btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> &nbsp; Processing...';
+            btn.style.opacity = "0.7";
+            btn.style.cursor = "not-allowed";
         }
 
+        // --- 2. DATABASE UPDATE ---
+        let u = {}; 
+        u[COL.goals] = targetUser[COL.goals]; 
+        u[COL.stat] = newStatus;
+        
+        const { error } = await db.from('active_list').update(u).eq(COL.id, targetUser[COL.id]);
+        
+        if (error) {
+            showToast("Error update status: " + error.message, 'error');
+            // Re-enable button if error occurs
+            if(btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> &nbsp; Retry Submit';
+                btn.style.opacity = "1";
+                btn.style.cursor = "pointer";
+            }
+        } else {
+            showToast("Status updated to: " + newStatus, 'success');
+            setTimeout(() => location.reload(), 1500);
+        }
+    });
+}
         async function rejectCard() {
             showConfirm("Reject Scorecard", "Return this scorecard to the employee for editing?", "Reject & Return", "danger", async () => {
                 const { error } = await db.from('active_list').update({ [COL.stat]: 'Returned' }).eq(COL.id, targetUser[COL.id]);
@@ -3594,6 +3629,7 @@ async function loadReports() {
 </body>
 
 </html>
+
 
 
 
