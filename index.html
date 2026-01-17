@@ -3368,26 +3368,36 @@
         function closeConfirm() { document.getElementById('confirm-overlay').classList.remove('open'); confirmCallback = null; }
         function doConfirm() { if (confirmCallback) confirmCallback(); closeConfirm(); }
 
-        function getRole(u, isManagerByReports) {
-            if (!u) return 'Staff';
-            const job = (u[COL.job] || "").trim();
-            const cleanJob = job.toLowerCase().replace(/\s+/g, ' ').trim();
-            const cleanMaster = MASTER_ADMIN_TITLE.toLowerCase().replace(/\s+/g, ' ').trim();
-            const roleCol = u[COL.role] || "";
+       function getRole(u, isManagerByReports) {
+    if (!u) return 'Staff';
 
-            if (u[COL.id] === 'ZIQ00783') return 'Master';
-            if (cleanJob === cleanMaster) return 'Master';
-            if (roleCol.toLowerCase() === 'admin') return 'Admin';
+    // 1. CLEAN THE DATA
+    // Convert to string, trim spaces, and make uppercase for comparison
+    const job = (u[COL.job] || "").toString().trim().toUpperCase();
+    
+    // 2. DEFINE THE ONLY ALLOWED ADMIN TITLE
+    const masterTitle = "HEAD OF EMPLOYEE GROWTH AND RELATION DEPARTMENT";
 
-            if (isManagerByReports) return 'Manager';
+    // 3. STRICT CHECK
+    // Only return 'Master' if the job matches EXACTLY.
+    // We strictly ignore the 'access_role' column here.
+    if (job === masterTitle) {
+        return 'Master';
+    }
 
-            const l = u[COL.lvl] || "";
-            if (l.includes('L1')) return 'Chief';
-            if (l.includes('L2')) return 'Director';
-            if (l.includes('L3')) return 'Senior Manager';
-            if (l.includes('L4')) return 'Manager';
-            return 'Staff';
-        }
+    // 4. CHECK FOR OTHER ROLES
+    // If they manage people (have reports), they are at least a Manager
+    if (isManagerByReports) return 'Manager';
+
+    // Check levels for standard hierarchy
+    const l = (u[COL.lvl] || "").toUpperCase();
+    if (l.includes('L1')) return 'Chief';
+    if (l.includes('L2')) return 'Director';
+    if (l.includes('L3')) return 'Senior Manager';
+    if (l.includes('L4')) return 'Manager';
+
+    return 'Staff';
+}
 
         function getW(l, j) {
             const job = (j || "").toLowerCase().trim();
@@ -3605,3 +3615,4 @@
 </body>
 
 </html>
+
