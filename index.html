@@ -1587,28 +1587,35 @@ const COL = {
     }
 }
 
-        async function mapColumns() {
-            const { data } = await db.from('active_list').select('*').limit(1);
-            if (data && data[0]) {
-                const r = data[0];
-                const keys = Object.keys(r);
-                const findCol = (terms) => keys.find(k => terms.some(t => k.toLowerCase().includes(t.toLowerCase())));
+       async function mapColumns() {
+    const { data } = await db.from('active_list').select('*').limit(1);
+    if (data && data[0]) {
+        const r = data[0];
+        const keys = Object.keys(r);
+        const findCol = (terms) => keys.find(k => terms.some(t => k.toLowerCase().includes(t.toLowerCase())));
 
-                if (r['Employee Number']) COL.id = 'Employee Number';
-                if (r['Name']) COL.name = 'Name';
-                if (r['Level']) COL.lvl = 'Level';
-                if (r['Job']) COL.job = 'Job';
-                if (r['Division']) COL.div = 'Division';
-                if (r['Department']) COL.dept = 'Department';
+        // --- MAPPING FIXES ---
+        if (r['Employee Number']) COL.id = 'Employee Number';
+        
+        if (r['Name']) COL.name = 'Name';
+        
+        if (r['Level']) COL.lvl = 'Level';
 
-                const mgrCol = findCol(['supervisor', 'manager', 'reports to', 'direct manager']);
-                if (mgrCol) COL.mgr = mgrCol;
+        // FIX: Search for 'Job Title' or 'Title' first. 
+        // If we just check r['Job'], we might get a generic classification column.
+        const jobCol = findCol(['job title', 'title', 'position', 'designation', 'job']);
+        if (jobCol) COL.job = jobCol;
 
-                const roleCol = findCol(['access_role', 'role', 'permission']);
-                if (roleCol) COL.role = roleCol;
-            }
-        }
+        if (r['Division']) COL.div = 'Division';
+        if (r['Department']) COL.dept = 'Department';
 
+        const mgrCol = findCol(['supervisor', 'manager', 'reports to', 'direct manager']);
+        if (mgrCol) COL.mgr = mgrCol;
+
+        const roleCol = findCol(['access_role', 'role', 'permission']);
+        if (roleCol) COL.role = roleCol;
+    }
+}
         async function restoreSession(id) {
             const { data } = await db.from('active_list').select('*').eq(COL.id, id).single();
             if (data) { user = data; startIdleTimer(); launchApp(); } else showLogin();
@@ -3692,6 +3699,7 @@ diagnoseTeam();
 </body>
 
 </html>
+
 
 
 
