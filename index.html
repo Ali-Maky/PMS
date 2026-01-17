@@ -59,7 +59,39 @@
             --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             --font-main: 'Inter', sans-serif;
         }
+/* --- UI Polish --- */
+.metric-card.locked {
+    background: linear-gradient(135deg, #4f46e5, #4338ca); /* Deep Indigo */
+    color: white;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.4);
+}
 
+.metric-card.locked .metric-lbl {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.7rem;
+    letter-spacing: 1px;
+}
+
+.metric-val.pending-text {
+    font-size: 1.5rem; /* Smaller than numbers to fit text */
+    color: #6366f1;    /* Primary Color */
+    line-height: 1.2;
+}
+
+/* Disabled "Waiting" Button Style */
+.btn:disabled {
+    background-color: #e2e8f0 !important;
+    border-color: #e2e8f0 !important;
+    color: #94a3b8 !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
         * {
             box-sizing: border-box;
             outline: none;
@@ -2886,24 +2918,60 @@ if (isSearchMode) canEdit = false;
                         ${isManager ? `<button onclick="${isDirectSupervisor ? 'loadTeam()' : 'loadHRAdmin()'}" class="btn btn-outline"><i class="fa-solid fa-arrow-left"></i> &nbsp; Back to List</button>` : ''}
                     </div>
                    
-                    <div class="metrics-row">
-                        <div class="metric-card highlight">
-                            <div class="metric-val" id="score">${showScoreToViewer ? '0.0' : '<i class="fa-solid fa-lock" style="font-size:1.5rem; opacity:0.5;"></i>'}</div>
-                            <div class="metric-lbl">${showScoreToViewer ? 'Total Score' : 'Score Hidden'}</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-val" id="rating" style="color:var(--primary);">${showScoreToViewer ? '-' : '--'}</div>
-                            <div class="metric-lbl">${showScoreToViewer ? 'Final Rating' : 'Pending HR'}</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-val" style="color:var(--text-muted);">${w.s}%</div>
-                            <div class="metric-lbl" style="color:var(--primary);">Shared Goals</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-val" style="color:var(--text-muted);">${w.i}%</div>
-                            <div class="metric-lbl" style="color:var(--primary);">Individual Goals</div>
-                        </div>
-                    </div>
+                    // --- NEW METRICS UI ---
+let scoreCardHtml = '';
+if (showScoreToViewer) {
+    scoreCardHtml = `
+    <div class="metric-card highlight">
+        <div class="metric-val" id="score">${total.toFixed(2)}</div>
+        <div class="metric-lbl">Total Score</div>
+    </div>`;
+} else {
+    // "Score Hidden" Style (Matches Image 6)
+    scoreCardHtml = `
+    <div class="metric-card locked">
+        <i class="fa-solid fa-lock"></i>
+        <div class="metric-lbl" style="margin-top:8px;">SCORE HIDDEN</div>
+    </div>`;
+}
+
+let ratingCardHtml = '';
+if (showScoreToViewer) {
+    let lbl = "-";
+    if (total >= 5.5) lbl = "ASTRONAUT";
+    else if (total >= 4.5) lbl = "FLYER";
+    else if (total >= 3.5) lbl = "RUNNER";
+    else if (total >= 2.5) lbl = "WALKER";
+    else if (total >= 1.5) lbl = "STAGNANT";
+    else if (total > 0) lbl = "IDLE";
+
+    ratingCardHtml = `
+    <div class="metric-card">
+        <div class="metric-val" id="rating" style="color:var(--primary);">${lbl}</div>
+        <div class="metric-lbl">Final Rating</div>
+    </div>`;
+} else {
+    // "Pending HR" Style (Matches Image 6)
+    ratingCardHtml = `
+    <div class="metric-card">
+        <div class="metric-val pending-text">Pending<br>HR</div>
+        <div class="metric-lbl">Status</div>
+    </div>`;
+}
+
+h += `
+<div class="metrics-row">
+    ${scoreCardHtml}
+    ${ratingCardHtml}
+    <div class="metric-card">
+        <div class="metric-val" style="color:var(--text-muted);">${w.s}%</div>
+        <div class="metric-lbl" style="color:#6b7280;">Shared Goals</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-val" style="color:var(--text-muted);">${w.i}%</div>
+        <div class="metric-lbl" style="color:#6b7280;">Individual Goals</div>
+    </div>
+</div>`;
 
                     <div class="info-panel">
                         <div class="info-item"><label>Employee Name</label><div class="info-value">${data[COL.name]}</div></div>
@@ -2990,7 +3058,7 @@ if (canEdit) {
 // If I am the manager, and it's at HR, I must wait (even if I am an Admin).
 // I must go to the Admin Panel to override this.
 if (isDirectSupervisor && stat === 'Submitted to HR') {
-    h += `<button class="btn btn-primary" disabled style="padding:12px 32px; font-size:1rem; background:#e2e8f0; border-color:#e2e8f0; color:#94a3b8; cursor:not-allowed;">
+   h += `<button class="btn btn-primary" disabled>
             <i class="fa-solid fa-clock"></i> &nbsp; Waiting for HR Approval
           </button>`;
 }
@@ -3727,6 +3795,7 @@ h += `</div></div>`; // Close container
 </body>
 
 </html>
+
 
 
 
