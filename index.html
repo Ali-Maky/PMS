@@ -149,6 +149,168 @@
             border: 1px solid var(--border);
         }
 
+        /* --- Team Grid & Cards --- */
+        .team-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 24px;
+            padding-bottom: 40px;
+        }
+
+        .premium-team-card {
+            background: white;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            padding: 24px;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .premium-team-card:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--primary-light);
+        }
+
+        .premium-team-card:active {
+            transform: scale(0.98);
+        }
+
+        .pt-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .pt-avatar {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            font-weight: 700;
+            box-shadow: var(--shadow-glow);
+        }
+
+        .pt-status-badge {
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 6px 12px;
+            border-radius: 99px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .pt-status-badge.draft {
+            background: #f3f4f6;
+            color: var(--text-muted);
+            border: 1px solid #e5e7eb;
+        }
+
+        .pt-status-badge.submitted {
+            background: #eff6ff;
+            color: var(--info);
+            border: 1px solid #bfdbfe;
+        }
+
+        .pt-status-badge.approved {
+            background: #dcfce7;
+            color: var(--success);
+            border: 1px solid #86efac;
+        }
+
+        .pt-status-badge.returned {
+            background: #fff1f2;
+            color: var(--danger);
+            border: 1px solid #fecaca;
+        }
+
+        .pt-status-badge.hr-pending {
+            background: #fff7ed;
+            color: var(--warning);
+            border: 1px solid #fed7aa;
+        }
+
+        .pt-body {
+            flex: 1;
+        }
+
+        .pt-name {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 4px;
+        }
+
+        .pt-role {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .pt-meta {
+            font-size: 0.8rem;
+            color: var(--text-light);
+            font-family: monospace;
+            background: #f9fafb;
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .pt-footer {
+            margin-top: auto;
+            border-top: 1px solid var(--border);
+            padding-top: 16px;
+        }
+
+        .live-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+            color: var(--success);
+            font-weight: 600;
+            background: #dcfce7;
+            padding: 6px 12px;
+            border-radius: 99px;
+        }
+
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse-green 1.5s infinite;
+        }
+
+        @keyframes pulse-green {
+            0% {
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+            }
+
+            70% {
+                box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+            }
+        }
+
         #save-status.show {
             transform: translateY(0);
         }
@@ -1305,19 +1467,19 @@
             opacity: 1;
         }
 
-        /* PREMIUM TEAM CARD CSS */
+        /* PREMIUM TEAM CARD CSS - Polished */
         .premium-team-card {
             background: white;
-            border-radius: 20px;
-            padding: 32px 24px 24px 24px;
-            box-shadow: var(--shadow-sm);
-            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -1px rgb(0 0 0 / 0.05);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             border: 1px solid var(--border);
             position: relative;
             overflow: hidden;
-            cursor: pointer;
             display: flex;
             flex-direction: column;
+            cursor: default;
         }
 
         .premium-team-card:hover {
@@ -1491,26 +1653,30 @@
     </div>
 
     <div id="app-container">
-            <aside class="sidebar">
-                    <div class="brand"><i class="fa-solid fa-bolt"></i> Zain PMS</div>
-                    <nav id="nav-menu" style="flex:1; display:flex; flex-direction:column;"></nav>
-                    <div class="user-panel">
-                            <div style="font-weight:700; font-size:0.95rem; color:var(--text-main);" id="disp-user">User
-                </div>
-                            <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:15px;" id="disp-role">
-                    Role</div>
-                            <button class="btn btn-outline"
+        <aside class="sidebar">
+            <div class="brand"><i class="fa-solid fa-bolt"></i> Zain PMS</div>
+            <nav id="nav-menu" style="flex:1; display:flex; flex-direction:column;"></nav>
+            <div class="user-panel">
+                <div style="font-weight:700; font-size:0.95rem; color:var(--text-main);" id="disp-user">User</div>
+                <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:15px;" id="disp-role">Role</div>
+                <button class="btn btn-outline"
                     style="width:100%; justify-content:center; color:var(--danger); border-color:#fee2e2; background:#fff1f2;"
                     onclick="logout()"><i class="fa-solid fa-power-off"></i> Log Out</button>
-                        </div>
-                </aside>
-            <main class="main-content" id="main-view"></main>
-            <input type="file" id="file-import" hidden accept=".xlsx, .xls, .csv" onchange="processFile(this)">
-            <input type="file" id="file-bulk" hidden accept=".xlsx, .xls, .csv" onchange="processBulkImport(this)">
-            <input type="file" id="file-users" hidden accept=".xlsx, .xls, .csv" onchange="processUserBulkImport(this)">
+            </div>
+        </aside>
+        <main class="main-content" id="main-view"></main>
+        <input type="file" id="file-import" hidden accept=".xlsx, .xls, .csv" onchange="processFile(this)">
+        <input type="file" id="file-bulk" hidden accept=".xlsx, .xls, .csv" onchange="processBulkImport(this)">
+        <input type="file" id="file-users" hidden accept=".xlsx, .xls, .csv" onchange="processUserBulkImport(this)">
     </div>
 
     <script>
+        // --- SECURITY: XSS Sanitization Helper ---
+        function escapeHtml(text) {
+            if (text === null || text === undefined) return "";
+            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+            return String(text).replace(/[&<>"']/g, function (m) { return map[m]; });
+        }
         // --- 1. CONFIGURATION ---
         const SUPABASE_URL = 'https://egxtnoapipngiqxxakwt.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVneHRub2FwaXBuZ2lxeHhha3d0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgyMjE1MDgsImV4cCI6MjA4Mzc5NzUwOH0.jwPue3Hl0tJRsh6EEClLztC4ZTCbtpmtFBnOE8h7h9I';
@@ -1536,6 +1702,7 @@
         let allCompanyData = [];
         let globalReports = [];
         let showScoreToViewer = false;
+        let teamSubscription; // Store the subscription
 
         // --- 2. INIT ---
         window.onload = async function () {
@@ -1548,9 +1715,45 @@
                 if (Array.isArray(sg.data)) masterData = { rating: 0, goals: sg.data }; else masterData = sg.data;
             } else { masterData = { rating: 0, goals: [] }; }
 
+            // --- AUTH STATE LISTENER ---
+            db.auth.onAuthStateChange(async (event, session) => {
+                if (event === 'SIGNED_IN' && session?.user) {
+                    console.log("Supabase Session Active:", session.user.id);
+                    // If we are already running with user loaded, skip
+                    if (user && user[COL.id]) return;
+
+                    // Fetch profile by Auth ID
+                    // Note: This requires the SQL migration script to have been run
+                    const { data: profile } = await db.from('active_list').select('*').eq('auth_user_id', session.user.id).single();
+                    if (profile) {
+                        user = profile;
+                        localStorage.setItem('zpms_uid', user[COL.id]);
+                        localStorage.setItem('zpms_time', Date.now());
+                        startIdleTimer();
+                        launchApp();
+                    } else {
+                        // Fallback: This might happen if Auth exists but DB column 'auth_user_id' is empty?
+                        // Should not happen if created via doLogin hybrid flow.
+                        console.warn("Auth User found but no Profile linked.");
+                    }
+                } else if (event === 'SIGNED_OUT') {
+                    // localStorage.removeItem('zpms_uid'); // Optional: force full clear?
+                }
+            });
+
+            // --- LEGACY RESTORE ---
             const uid = localStorage.getItem('zpms_uid');
-            if (uid && (Date.now() - localStorage.getItem('zpms_time') < IDLE_LIMIT)) restoreSession(uid);
-            else showLogin();
+            const { data: { session } } = await db.auth.getSession();
+
+            if (session?.user) {
+                // Auth Listener will handle this
+            }
+            else if (uid && (Date.now() - localStorage.getItem('zpms_time') < IDLE_LIMIT)) {
+                restoreSession(uid);
+            }
+            else {
+                showLogin();
+            }
         }
 
         async function mapColumns() {
@@ -1607,14 +1810,98 @@
 
         async function doLogin() {
             const p1 = document.getElementById('inp-pass').value;
-            if (isRegistering) {
-                if (p1 !== document.getElementById('inp-confirm').value) { alert("Passwords match error"); return; }
-                await db.from('active_list').update({ password: p1 }).eq(COL.id, user[COL.id]);
-            } else {
-                if (p1 !== (user[COL.pass] || user['password'])) { alert("Incorrect Password"); return; }
+            const btn = document.getElementById('btn-login');
+            btn.innerText = "Signing in...";
+            btn.disabled = true;
+
+            try {
+                // 1. GENERATE AUTH EMAIL (Format: ID@zain.com)
+                // This acts as a consistent unique identifier for Auth
+                const email = `${user[COL.id].trim()}@zain.com`.toLowerCase();
+
+                // 2. ATTEMPT SUPABASE AUTH LOGIN
+                const { data: authData, error: authError } = await db.auth.signInWithPassword({
+                    email: email,
+                    password: p1
+                });
+
+                if (authData?.user) {
+                    console.log("Logged in via Supabase Auth");
+                    localStorage.setItem('zpms_uid', user[COL.id]);
+                    localStorage.setItem('zpms_time', Date.now());
+                    startIdleTimer();
+                    launchApp();
+                    return;
+                }
+
+                // 3. FALLBACK: LEGACY PASSWORD CHECK
+                // Only if Auth login failed (e.g. user not migrated yet)
+                if (isRegistering) {
+                    if (p1 !== document.getElementById('inp-confirm').value) { alert("Passwords match error"); btn.disabled = false; btn.innerText = "Create & Login"; return; }
+                    // For new users, we will Register them directly below
+                } else {
+                    if (p1 !== (user[COL.pass] || user['password'])) {
+                        alert("Incorrect Password");
+                        btn.disabled = false;
+                        btn.innerText = "Login";
+                        return;
+                    }
+                }
+
+                // 4. MIGRATION: REGISTER USER IN SUPABASE AUTH
+                // If we are here, Legacy Password is correct (or setting new one).
+                // We now creating the Auth User to enforce future RLS.
+                console.log("Migrating User to Supabase Auth...");
+
+                const { data: signUpData, error: signUpError } = await db.auth.signUp({
+                    email: email,
+                    password: p1,
+                    options: {
+                        data: {
+                            employee_id: user[COL.id]
+                        }
+                    }
+                });
+
+                if (signUpError) {
+                    // Handle "User already registered" edge case (if network glitch caused param mismatch previously)
+                    console.error("Migration Error:", signUpError);
+                    if (!signUpError.message.includes("registered")) {
+                        alert("Migration Failed: " + signUpError.message);
+                        btn.disabled = false;
+                        btn.innerText = "Login";
+                        return;
+                    }
+                }
+
+                // 5. LINK AUTH ID TO DATA TABLE
+                // Now we have a valid Auth User. We must link it to the `active_list` row.
+                // We use the Service Role logic via a public update (Allowed by our "Claim Account" policy)
+                // OR we rely on the fact that if we are just signing up, we are authenticated now.
+
+                if (signUpData?.user) {
+                    // We need to sign in immediately if auto-confirm is on, or wait.
+                    // Assuming Supabase project has "Enable Confirm Email" OFF for this intranet app.
+                    const { error: updateError } = await db.from('active_list').update({
+                        auth_user_id: signUpData.user.id,
+                        password: null // OPTIONAL: Clear legacy password for security? Maybe keep as backup for now.
+                    }).eq(COL.id, user[COL.id]);
+
+                    if (updateError) console.warn("Failed to link Auth ID:", updateError);
+                }
+
+                // Success
+                localStorage.setItem('zpms_uid', user[COL.id]);
+                localStorage.setItem('zpms_time', Date.now());
+                startIdleTimer();
+                launchApp();
+
+            } catch (err) {
+                console.error("Login Critical Error:", err);
+                alert("An unexpected error occurred.");
+                btn.disabled = false;
+                btn.innerText = "Login";
             }
-            localStorage.setItem('zpms_uid', user[COL.id]); localStorage.setItem('zpms_time', Date.now());
-            startIdleTimer(); launchApp();
         }
 
         // --- BATCHED FETCH HELPER ---
@@ -1646,8 +1933,8 @@
             document.getElementById('loading-overlay').classList.add('hidden');
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('app-container').style.display = 'flex';
-            document.getElementById('disp-user').innerText = user[COL.name];
-            document.getElementById('disp-role').innerText = user[COL.lvl];
+            document.getElementById('disp-user').innerText = user[COL.name]; // innerText is safe
+            document.getElementById('disp-role').innerText = user[COL.lvl]; // innerText is safe
 
             if (allCompanyData.length === 0) {
                 document.getElementById('save-text').innerText = "Syncing directory...";
@@ -2702,40 +2989,63 @@
             chartOrg.update();
         }
 
+
         async function loadTeam() {
             const myId = user[COL.id];
+
+            // Setup Live Updates if not already active
+            if (!teamSubscription) setupLiveTeamUpdates();
+
             const myName = user[COL.name];
             let filter = `${COL.mgr}.ilike.%${myId}%`;
             if (myName) filter += `,${COL.mgr}.ilike.%${myName}%`;
 
+            // Initial Fetch
             const { data } = await db.from('active_list').select('*').or(filter);
+            renderTeamGrid(data || []);
+        }
 
+        function renderTeamGrid(data) {
             let h = `
                 <div class="animate-in">
                     <div class="header-bar">
                         <div><h2 class="page-title">My Team</h2><p class="page-sub">Direct Reports & Scorecards</p></div>
+                        <div class="live-indicator"><span class="pulse-dot"></span> Live Updates Active</div>
                     </div>
                     <div class="team-grid">`;
 
             if (data && data.length > 0) {
+                // Sort: Submitted first, then Draft, then Approved
+                data.sort((a, b) => {
+                    const statusOrder = { 'Submitted to Manager': 1, 'Draft': 2, 'Returned': 3, 'Approved': 4, 'Submitted to HR': 5 };
+                    const sA = a[COL.stat] || 'Draft';
+                    const sB = b[COL.stat] || 'Draft';
+                    return (statusOrder[sA] || 99) - (statusOrder[sB] || 99);
+                });
+
                 data.forEach(e => {
-                    let isSub = e[COL.stat] === 'Submitted to Manager';
-                    let isApp = e[COL.stat] === 'Approved';
+                    let stat = e[COL.stat] || 'Draft';
                     let statClass = 'draft';
-                    if (isSub) statClass = 'submitted';
-                    if (isApp) statClass = 'approved';
+                    let icon = '<i class="fa-regular fa-file"></i>';
+
+                    if (stat === 'Submitted to Manager') { statClass = 'submitted'; icon = '<i class="fa-solid fa-paper-plane"></i>'; }
+                    else if (stat === 'Approved') { statClass = 'approved'; icon = '<i class="fa-solid fa-check"></i>'; }
+                    else if (stat === 'Returned') { statClass = 'returned'; icon = '<i class="fa-solid fa-rotate-left"></i>'; }
+                    else if (stat.includes('HR')) { statClass = 'hr-pending'; icon = '<i class="fa-solid fa-user-shield"></i>'; }
 
                     h += `
-                    <div class="premium-team-card" onclick="loadEval('${e[COL.id]}')">
-                        <div class="pt-status status-badge ${statClass}">${e[COL.stat] || 'Draft'}</div>
-                        <div class="pt-avatar">${e[COL.name].charAt(0)}</div>
-                        <div class="pt-info">
-                            <div class="pt-name">${e[COL.name].split('(')[0]}</div>
-                            <div class="pt-role">${e[COL.job] || 'Staff'}</div>
-                            <div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">${e[COL.id]}</div>
+                    <div class="premium-team-card" onclick="loadEval('${escapeHtml(e[COL.id])}')">
+                        <div class="pt-header">
+                            <div class="pt-avatar">${escapeHtml((e[COL.name] || '?').charAt(0))}</div>
+                            <div class="pt-status-badge ${statClass}">${icon} &nbsp; ${escapeHtml(stat)}</div>
                         </div>
-                        <div style="border-top:1px solid var(--border); padding-top:16px; display:flex; justify-content:center;">
-                            <button class="btn btn-outline" style="width:100%; justify-content:center; font-size:0.9rem;">View Scorecard</button>
+                        <div class="pt-body">
+                            <div class="pt-name">${escapeHtml((e[COL.name] || 'Unknown').split('(')[0])}</div>
+                            <div class="pt-role">${escapeHtml(e[COL.job] || 'Staff')}</div>
+                            <div class="pt-meta">ID: ${escapeHtml(e[COL.id])}</div>
+                        </div>
+                        <div class="pt-footer">
+                            <button class="btn btn-outline btn-sm">View Scorecard</button>
                         </div>
                     </div>`;
                 });
@@ -2743,7 +3053,53 @@
                 h += `<div class="empty-state-message">No direct reports found.</div>`;
             }
             h += `</div></div>`;
+
+            // Only update if we are still on the My Team view (simple check: if header exists)
+            // or if we are just calling this function to purely render.
+            // But usually we render() the whole thing.
             render(h);
+        }
+
+        function setupLiveTeamUpdates() {
+            const myId = user[COL.id];
+            console.log("Setting up Live Updates for Manager:", myId);
+
+            teamSubscription = db.channel('team-updates')
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'active_list' },
+                    async (payload) => {
+                        // Check if the change is relevant to this manager
+                        // We check if the NEW row's manager is me, OR best effort if the OLD row's manager was me (for deletes/moves)
+
+                        let relevant = false;
+                        const curr = payload.new;
+                        const old = payload.old;
+
+                        if (curr && curr[COL.mgr] && curr[COL.mgr].includes(myId)) relevant = true;
+                        // For broader coverage (name based mgr field), strictly we might need more checks but ID is safest.
+
+                        if (relevant) {
+                            console.log("Change detected!", payload);
+                            // Debounce or just reload
+                            // For simplicity, just re-fetch the list to ensure sorting and consistency
+                            // We call the logic inside loadTeam but without re-subscribing
+                            const myName = user[COL.name];
+                            let filter = `${COL.mgr}.ilike.%${myId}%`;
+                            if (myName) filter += `,${COL.mgr}.ilike.%${myName}%`;
+                            const { data } = await db.from('active_list').select('*').or(filter);
+
+                            // Only re-render if the user is currently looking at "My Team" (i.e. not viewing a scorecard)
+                            // We can check if the "My Team" title is present in DOM or store "currentView" variable.
+                            // A simple heuristic: check for .team-grid
+                            if (document.querySelector('.team-grid')) {
+                                renderTeamGrid(data || []);
+                                showToast("Team list updated", "success");
+                            }
+                        }
+                    }
+                )
+                .subscribe();
         }
 
         // --- 9. SCORECARD ---
@@ -2982,11 +3338,11 @@
                 <div class="pro-goal-card animate-in" style="animation-delay: ${i * 0.1}s">
                     <div class="pro-goal-header">
                         <div style="flex:1;">
-                            <div style="font-size:1.1rem; font-weight:700; color:var(--text-main); padding:8px 0;">${g.title}</div>
+                            <div style="font-size:1.1rem; font-weight:700; color:var(--text-main); padding:8px 0;">${escapeHtml(g.title)}</div>
                         </div>
                         <div class="pro-goal-meta">
                             <div class="pro-weight-badge">
-                                ${g.unit ? `<span style="color:var(--text-muted); font-weight:600; margin-right:8px; font-size:0.85rem;">[${g.unit}]</span>` : ''}
+                                ${g.unit ? `<span style="color:var(--text-muted); font-weight:600; margin-right:8px; font-size:0.85rem;">[${escapeHtml(g.unit)}]</span>` : ''}
                                 Weight: <span style="font-weight:700; color:var(--primary); margin-left:4px;">${(g.weight * 100)}%</span>
                             </div>
                             ${edit ? `
@@ -2997,7 +3353,7 @@
                     </div>
                    
                     <div style="margin-bottom:20px;">
-                         <div class="pro-goal-desc" style="background:#f8fafc; border:none;">${g.desc || 'No description provided.'}</div>
+                         <div class="pro-goal-desc" style="background:#f8fafc; border:none;">${escapeHtml(g.desc || '') || 'No description provided.'}</div>
                     </div>
 
                     <div class="pro-targets-container">
