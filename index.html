@@ -2758,16 +2758,27 @@ async function loadReports() {
 
                 const stat = data[COL.stat] || 'Draft';
 
-                let canEdit = false;
-                if (viewingSelf) {
-                    canEdit = (stat === 'Draft' || stat === 'Returned');
-                } else if (isDirectSupervisor) {
-                    canEdit = (stat === 'Submitted to Manager');
-                }
-                if ((uRole === 'Admin' || uRole === 'Master') && !viewingSelf) {
-                    canEdit = true;
-                }
-                if (isSearchMode) canEdit = false;
+               let canEdit = false;
+
+// 1. Basic Rules
+if (viewingSelf) {
+    canEdit = (stat === 'Draft' || stat === 'Returned');
+} else if (isDirectSupervisor) {
+    canEdit = (stat === 'Submitted to Manager');
+}
+
+// 2. Admin Override (With "Manager Hat" Exception)
+if ((uRole === 'Admin' || uRole === 'Master') && !viewingSelf) {
+    // CRITICAL FIX: If I am the direct supervisor and I already submitted to HR, 
+    // I lose my editing rights on this screen and must wait (or go to Admin Panel).
+    if (isDirectSupervisor && stat === 'Submitted to HR') {
+        canEdit = false; 
+    } else {
+        canEdit = true;
+    }
+}
+
+if (isSearchMode) canEdit = false;
 
                 let mName = data[COL.mgr] || '-'; if (mName.includes('(')) mName = mName.split('(')[0];
                 const showScoreToViewer = (stat === 'Approved') || (isManager && !viewingSelf) || (['Admin', 'Master'].includes(uRole) && !viewingSelf);
@@ -3634,6 +3645,7 @@ h += `</div></div>`; // Close container
 </body>
 
 </html>
+
 
 
 
