@@ -20,6 +20,35 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
        
       <style>
+             /* Dynamic Rating Badges */
+.badge-score {
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-weight: 800;
+    font-family: monospace;
+    display: inline-block;
+    min-width: 60px;
+    text-align: center;
+}
+
+.badge-rating {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: inline-block;
+}
+
+/* Color Levels */
+.lvl-6 { background: #592C82; color: white; }           /* Astronaut - Purple */
+.lvl-5 { background: #10b981; color: white; }           /* Flyer - Green */
+.lvl-4 { background: #3b82f6; color: white; }           /* Runner - Blue */
+.lvl-3 { background: #f59e0b; color: white; }           /* Walker - Orange */
+.lvl-2 { background: #ef4444; color: white; }           /* Stagnant - Red */
+.lvl-1 { background: #94a3b8; color: white; }           /* Idle - Gray */
+.lvl-0 { background: #f1f5f9; color: var(--text-muted); } /* N/A - Light Gray */
         :root {
             /* Modern Palette */
             --primary: #6366f1;
@@ -2633,21 +2662,54 @@ async function loadReports() {
     // --- NEW FILTER LOGIC END ---
 
     // Build Table Rows
-    const scoredReports = directReports.map(u => {
-        // ... (Same Score Logic as previous steps) ...
-        let userGoals = u[COL.goals] || [];
-        if (typeof userGoals === 'string') { try { userGoals = JSON.parse(userGoals); } catch (e) { userGoals = [] } }
-        let w = getW(u[COL.lvl], u[COL.job]);
-        let sScore = globalRating * (w.s / 100);
-        let iScore = 0; if(Array.isArray(userGoals)) userGoals.forEach(g => (iScore += (Number(g.rating) || 0) * (Number(g.weight) || 0)));
-        let total = sScore + (iScore * (w.i / 100));
-        let b = 0, lbl = "IDLE"; 
-        if (total >= 5.5) { b = 5; lbl = "ASTRONAUT"; } else if (total >= 4.5) { b = 4; lbl = "FLYER"; } else if (total >= 3.5) { b = 3; lbl = "RUNNER"; } else if (total >= 2.5) { b = 2; lbl = "WALKER"; } else if (total >= 1.5) { b = 1; lbl = "STAGNANT"; }
-        return { name: u[COL.name], score: total.toFixed(2), bucket: b, label: lbl, status: u[COL.stat] || 'Draft' };
-    });
-    scoredReports.sort((a, b) => b.score - a.score);
+// Build Table Rows with Color Highlights
+const scoredReports = directReports.map(u => {
+    let userGoals = u[COL.goals] || [];
+    if (typeof userGoals === 'string') { try { userGoals = JSON.parse(userGoals); } catch (e) { userGoals = [] } }
+    
+    let w = getW(u[COL.lvl], u[COL.job]);
+    let sScore = (masterData.rating || 0) * (w.s / 100);
+    let iScore = 0; 
+    if(Array.isArray(userGoals)) userGoals.forEach(g => (iScore += (Number(g.rating) || 0) * (Number(g.weight) || 0)));
+    
+    let total = sScore + (iScore * (w.i / 100));
+    
+    // Determine Level for Color
+    let lvl = 0;
+    let lbl = "IDLE";
+    if (total >= 5.5) { lvl = 6; lbl = "ASTRONAUT"; }
+    else if (total >= 4.5) { lvl = 5; lbl = "FLYER"; }
+    else if (total >= 3.5) { lvl = 4; lbl = "RUNNER"; }
+    else if (total >= 2.5) { lvl = 3; lbl = "WALKER"; }
+    else if (total >= 1.5) { lvl = 2; lbl = "STAGNANT"; }
+    else if (total > 0) { lvl = 1; lbl = "IDLE"; }
 
-    let tableRows = scoredReports.map(r => `<tr><td style="font-weight:600;">${r.name}</td><td style="text-align:center;">${r.score}</td><td>${r.label}</td><td style="text-align:right;">${r.status}</td></tr>`).join('');
+    return { 
+        name: u[COL.name], 
+        score: total.toFixed(2), 
+        lvl: lvl, 
+        label: lbl, 
+        status: u[COL.stat] || 'Draft' 
+    };
+});
+
+scoredReports.sort((a, b) => b.score - a.score);
+
+// New HTML Rendering with dynamic classes
+let tableRows = scoredReports.map(r => `
+    <tr>
+        <td style="font-weight:600; color:var(--text-main);">${r.name}</td>
+        <td style="text-align:center;">
+            <span class="badge-score lvl-${r.lvl}">${r.score}</span>
+        </td>
+        <td>
+            <span class="badge-rating lvl-${r.lvl}">${r.label}</span>
+        </td>
+        <td style="text-align:right;">
+            <span class="status-badge ${r.status === 'Approved' ? 'approved' : 'submitted'}">${r.status}</span>
+        </td>
+    </tr>
+`).join('');
 
     let h = `
     <div class="animate-in">
@@ -3768,6 +3830,7 @@ h += `</div></div>`; // Close container
     </style>
 </body>
 </html>
+
 
 
 
