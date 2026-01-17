@@ -1592,18 +1592,23 @@ const COL = {
     if (data && data[0]) {
         const r = data[0];
         const keys = Object.keys(r);
-        const findCol = (terms) => keys.find(k => terms.some(t => k.toLowerCase().includes(t.toLowerCase())));
+        const findCol = (terms) => keys.find(k => terms.some(t => k.toLowerCase().trim() === t.toLowerCase().trim() || k.toLowerCase().includes(t.toLowerCase())));
 
-        // --- MAPPING FIXES ---
         if (r['Employee Number']) COL.id = 'Employee Number';
-        
         if (r['Name']) COL.name = 'Name';
-        
         if (r['Level']) COL.lvl = 'Level';
 
-        // FIX: Search for 'Job Title' or 'Title' first. 
-        // If we just check r['Job'], we might get a generic classification column.
-        const jobCol = findCol(['job title', 'title', 'position', 'designation', 'job']);
+        // --- FIX: Search Priority Changed ---
+        // We look for "Functional Title", "Business Title", or "Position" FIRST.
+        // We only fall back to "Job Title" or "Job" if the specific ones are missing.
+        const jobCol = findCol([
+            'functional title', 
+            'business title', 
+            'position', 
+            'designation', 
+            'job title', 
+            'job'
+        ]);
         if (jobCol) COL.job = jobCol;
 
         if (r['Division']) COL.div = 'Division';
@@ -2477,7 +2482,7 @@ const systemEmail = `${cleanId}@zainpms.com`;
                 let userGoals = u[COL.goals];
                 if (typeof userGoals === 'string') { try { userGoals = JSON.parse(userGoals); if (typeof userGoals === 'string') userGoals = JSON.parse(userGoals); } catch (e) { userGoals = [] } }
                 if (!Array.isArray(userGoals)) userGoals = [];
-                let w = getW(u[COL.lvl], u[COL.job]);
+                let w = getW(u[COL.lvl], u[COL.job], u[COL.id]);
                 let sScore = globalRating * (w.s / 100);
                 let iScore = 0; userGoals.forEach(g => (iScore += (g.rating || 0) * (g.weight || 0)));
                 let total = sScore + (iScore * (w.i / 100));
@@ -2839,7 +2844,9 @@ async function loadReports() {
                 isDirectSupervisor = (mgrStr.includes(myId.toLowerCase()) || (myName.length > 3 && mgrStr.includes(myName)));
                 isManager = isDirectSupervisor || (uRole === 'Admin' && !viewingSelf) || (uRole === 'Master' && !viewingSelf);
 
-                const w = getW(data[COL.lvl], data[COL.job]);
+                // OLD: const w = getW(data[COL.lvl], data[COL.job]);
+                // NEW:
+                const w = getW(data[COL.lvl], data[COL.job], data[COL.id]);
                 let userGoals = targetUser[COL.goals];
                 if (typeof userGoals === 'string') { try { userGoals = JSON.parse(userGoals); } catch (e) { userGoals = []; } }
                 if (!userGoals || !Array.isArray(userGoals) || userGoals.length === 0) {
@@ -3462,19 +3469,37 @@ async function loadReports() {
     if (l.includes('L4')) return 'Manager';
     return 'Staff';
 }
-        function getW(l, j) {
-            const job = (j || "").toLowerCase().trim();
-            const levelStr = (l || "").toUpperCase();
-            const is = (role) => new RegExp(`\\b${role}\\b`).test(job);
+        function getW(l, j, id) { // Added 'id' parameter
+    // 1. HARD OVERRIDES (The Safety Net)
+    const cleanId = (id || "").toString().toUpperCase().trim();
+    
+    // CCO Override (Mohammed Samir)
+    if (cleanId === 'ZIQ00008') return { s: 30, i: 70 };
+    
+    // CEO Override (Emre Gurkan - assuming ZIQ00001 or similar, add if known)
+    // if (cleanId === 'ZIQ00001') return { s: 100, i: 0 };
 
-            if (is('ceo') || job === 'chief executive officer') return { s: 100, i: 0 };
-            if (is('cfo') || job === 'chief financial officer') return { s: 50, i: 50 };
-            if (is('cco') || job === 'chief commercial officer' || is('cto') || job === 'chief technology officer') { return { s: 30, i: 70 }; }
-            if (job.includes('chief')) return { s: 20, i: 80 };
-            if (levelStr.includes('2') && job.includes('director')) return { s: 15, i: 85 };
-            if ((levelStr.includes('3') || levelStr.includes('4')) && (job.includes('manager') || job.includes('head') || job.includes('senior'))) { return { s: 10, i: 90 }; }
-            return { s: 5, i: 95 };
-        }
+    // 2. Standard Logic
+    const job = (j || "").toLowerCase().trim();
+    const levelStr = (l || "").toUpperCase();
+    const is = (role) => new RegExp(`\\b${role}\\b`).test(job);
+
+    if (is('ceo') || job === 'chief executive officer') return { s: 100, i: 0 };
+    if (is('cfo') || job === 'chief financial officer') return { s: 50, i: 50 };
+    if (is('cco') || job === 'chief commercial officer' || is('cto') || job === 'chief technology officer') return { s: 30, i: 70 };
+    
+    // Generic "Chief" catch-all
+    if (job.includes('chief') && !job.includes('section')) return { s: 20, i: 80 };
+
+    if (levelStr.includes('L2') || job.includes('director')) return { s: 15, i: 85 };
+    
+    // L3 Senior Manager OR L4 Manager
+    if ((levelStr.includes('L3') || levelStr.includes('L4')) || (job.includes('manager') || job.includes('head'))) { 
+        return { s: 10, i: 90 }; 
+    }
+    
+    return { s: 5, i: 95 };
+}
     </script>
 
     <!-- GLOBAL UI CONTAINERS -->
@@ -3702,6 +3727,7 @@ diagnoseTeam();
 </body>
 
 </html>
+
 
 
 
