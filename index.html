@@ -1584,30 +1584,36 @@
         function logout() { localStorage.clear(); location.reload(); }
 
         // --- 3. AUTH & ROUTING ---
-        async function checkID() {
-            const id = document.getElementById('inp-id').value.trim();
-            const btn = document.getElementById('btn-check');
-            if (!id) return;
-            btn.innerText = "Checking...";
-            // This prevents the password and private goals from being 
-// sent to everyone's browser during the initial "Syncing directory" phase.
-const { data, error } = await db.from('active_list')
-    .select('id, name, level, job, manager_id, status, division, department')
-    .range(from, from + step - 1);
-            if (error || !data) { btn.innerText = "Continue"; document.getElementById('err-id').innerText = "ID not found"; document.getElementById('err-id').style.display = 'block'; return; }
+       async function checkID() {
+    const id = document.getElementById('inp-id').value.trim();
+    const btn = document.getElementById('btn-check');
+    if (!id) return;
+    btn.innerText = "Checking...";
 
-            user = data;
-            document.getElementById('view-id').classList.add('hidden');
-            document.getElementById('view-pass').classList.remove('hidden');
+    // UPDATED SELECT: No 'from' variable needed here
+    const { data, error } = await db.from('active_list')
+        .select('id, name, level, job, manager_id, status, goals, division, department, password, access_role')
+        .eq(COL.id, id)
+        .maybeSingle(); // Better than .single() to avoid console errors if ID is missing
 
-            if (!(user[COL.pass] || user['password'])) {
-                isRegistering = true;
-                document.getElementById('lbl-welcome').innerText = "Set Password";
-                document.getElementById('grp-confirm').classList.remove('hidden');
-                document.getElementById('btn-login').innerText = "Create & Login";
-            }
-        }
+    if (error || !data) { 
+        btn.innerText = "Continue"; 
+        document.getElementById('err-id').innerText = "ID not found"; 
+        document.getElementById('err-id').style.display = 'block'; 
+        return; 
+    }
 
+    user = data;
+    document.getElementById('view-id').classList.add('hidden');
+    document.getElementById('view-pass').classList.remove('hidden');
+
+    if (!(user[COL.pass] || user['password'])) {
+        isRegistering = true;
+        document.getElementById('lbl-welcome').innerText = "Set Password";
+        document.getElementById('grp-confirm').classList.remove('hidden');
+        document.getElementById('btn-login').innerText = "Create & Login";
+    }
+}
         async function doLogin() {
             const p1 = document.getElementById('inp-pass').value;
             if (isRegistering) {
@@ -1621,24 +1627,23 @@ const { data, error } = await db.from('active_list')
         }
 
         // --- BATCHED FETCH HELPER ---
-        async function fetchAllData() {
-            let allRows = [];
-            let from = 0;
-            const step = 1000;
-            while (true) {
-                // This prevents the password and private goals from being 
-// sent to everyone's browser during the initial "Syncing directory" phase.
-const { data, error } = await db.from('active_list')
-    .select('id, name, level, job, manager_id, status, division, department')
-    .range(from, from + step - 1);
-                if (error) { console.error(error); return []; }
-                if (!data || data.length === 0) break;
-                allRows = allRows.concat(data);
-                if (data.length < step) break;
-                from += step;
-            }
-            return allRows;
-        }
+async function fetchAllData() {
+    let allRows = [];
+    let from = 0; // 'from' is defined here locally
+    const step = 1000;
+    while (true) {
+        const { data, error } = await db.from('active_list')
+            .select('id, name, level, job, manager_id, status, division, department')
+            .range(from, from + step - 1);
+        
+        if (error) { console.error(error); return []; }
+        if (!data || data.length === 0) break;
+        allRows = allRows.concat(data);
+        if (data.length < step) break;
+        from += step;
+    }
+    return allRows;
+}
 
         function getCompany(id) {
     if (!id) return "Unknown";
@@ -3734,5 +3739,6 @@ h += `</div></div>`; // Close container
     </style>
 </body>
 </html>
+
 
 
