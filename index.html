@@ -1631,29 +1631,31 @@ const { data, error } = await db.from('active_list')
 async function fetchAllData() {
     let allRows = [];
     let from = 0;
+    const step = 1000; // <--- This defines the 'step' variable
     
-    while (true) { // <--- The loop starts here
+    while (true) {
         const { data, error } = await db.from('active_list')
             .select('id, name, level, job, manager_id, status, division, department')
             .range(from, from + step - 1);
         
         if (error) { 
-            console.error(error); 
+            console.error("Batch fetch error:", error); 
             return []; 
         }
         
         if (!data || data.length === 0) {
-            break; // <--- This 'break' is ONLY allowed inside the while loop
+            break; 
         }
         
         allRows = allRows.concat(data);
         
+        // If we got fewer results than the step, we've reached the end
         if (data.length < step) {
-            break; // <--- This 'break' is ONLY allowed inside the while loop
+            break; 
         }
         
         from += step;
-    } // <--- The loop MUST end after the 'break' statements
+    }
     
     return allRows;
 }
@@ -3751,6 +3753,7 @@ h += `</div></div>`; // Close container
     </style>
 </body>
 </html>
+
 
 
 
