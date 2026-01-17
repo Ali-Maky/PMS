@@ -2497,48 +2497,33 @@
         // --- 7. REPORTS ---
         // --- 7. REPORTS (UPDATED FOR REAL-TIME AUTO-CALCULATION) ---
 async function loadReports() {
-    // 1. Show loading state immediately so user knows it's updating
+    // 1. Loading State
     document.getElementById('main-view').innerHTML = `
         <div style="height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center; color:var(--text-muted);">
             <div class="spinner" style="border-width:3px; width:30px; height:30px;"></div>
-            <div style="margin-top:10px; font-weight:600; font-size:0.9rem;">Syncing latest ratings...</div>
+            <div style="margin-top:10px; font-weight:600; font-size:0.9rem;">Syncing latest data...</div>
         </div>`;
 
-    // 2. FORCE DATA REFRESH: This ensures we get the latest "Auto-Saved" ratings
-    // even if the manager hasn't clicked "Submit" yet.
-    try {
-        allCompanyData = await fetchAllData(); 
-    } catch (e) {
-        console.error("Sync error", e);
-    }
+    // 2. Fetch Fresh Data
+    try { allCompanyData = await fetchAllData(); } catch (e) { console.error(e); }
 
-    // 3. Filter for Direct Reports
+    // 3. Filter Direct Reports
     const myId = user[COL.id].toString().toLowerCase();
     const myName = user[COL.name].toString().toLowerCase();
-    
     let directReports = allCompanyData.filter(u => {
         const m = (u[COL.mgr] || "").toString().toLowerCase();
-        // Check if I am their manager
         return m.includes(myId) || (myName.length > 3 && m.includes(myName));
     });
 
     if (!directReports || directReports.length === 0) {
-        document.getElementById('main-view').innerHTML = `
-        <div class="animate-in">
-            <div class="header-bar">
-                <div><h2 class="page-title">Leadership Reports</h2></div>
-                <button class="btn btn-primary" onclick="loadReports()"><i class="fa-solid fa-rotate"></i> Refresh</button>
-            </div>
-            <div class="card" style="padding:40px; text-align:center; color:var(--text-muted);">
-                <i class="fa-solid fa-users-slash" style="font-size:2rem; margin-bottom:16px;"></i><br>
-                No direct reports found.
-            </div>
-        </div>`;
+        document.getElementById('main-view').innerHTML = `<div class="card" style="padding:40px; text-align:center;">No direct reports found.</div>`;
         return;
     }
 
     // 4. Calculate Org Data
     globalReports = getDownstream(user[COL.id], allCompanyData);
+    
+    // CCO Logic (Optional: Keep if needed)
     const myJob = (user[COL.job] || "").toUpperCase();
     if (myJob.includes('COMMERCIAL') || myJob.includes('CCO')) {
         globalReports = globalReports.filter(u => !((u[COL.div] || "").toUpperCase().includes('SECURITY')));
@@ -2547,36 +2532,19 @@ async function loadReports() {
     let showOrgChart = (globalReports.length > directReports.length);
     const globalRating = masterData.rating || 0;
 
-    // --- CALCULATION LOGIC ---
+    // --- CHART CALCULATION HELPER ---
     const calcDist = (list) => {
         let d = [0, 0, 0, 0, 0, 0];
         list.forEach(u => {
-            // Get goals from DB (freshly fetched)
             let userGoals = u[COL.goals] || [];
             if (typeof userGoals === 'string') { try { userGoals = JSON.parse(userGoals); } catch (e) { userGoals = [] } }
-            
-            // Calculate Scores (Even for Drafts)
             let w = getW(u[COL.lvl], u[COL.job]);
             let sScore = globalRating * (w.s / 100);
-            
             let iScore = 0; 
-            if(Array.isArray(userGoals)) {
-                userGoals.forEach(g => {
-                    // Use the current rating. If 0/null, it counts as 0.
-                    iScore += (Number(g.rating) || 0) * (Number(g.weight) || 0);
-                });
-            }
-
+            if(Array.isArray(userGoals)) userGoals.forEach(g => (iScore += (Number(g.rating) || 0) * (Number(g.weight) || 0)));
             let total = sScore + (iScore * (w.i / 100));
-            
-            // Bucket the score
             let b = 0; 
-            if (total >= 5.5) b = 5; 
-            else if (total >= 4.5) b = 4; 
-            else if (total >= 3.5) b = 3; 
-            else if (total >= 2.5) b = 2; 
-            else if (total >= 1.5) b = 1;
-            
+            if (total >= 5.5) b = 5; else if (total >= 4.5) b = 4; else if (total >= 3.5) b = 3; else if (total >= 2.5) b = 2; else if (total >= 1.5) b = 1;
             d[b]++;
         });
         return d;
@@ -2585,104 +2553,91 @@ async function loadReports() {
     const distDirect = calcDist(directReports);
     let distOrg = showOrgChart ? calcDist(globalReports) : null;
 
-    // ... (Existing Org Filter Logic) ...
+    // --- NEW FILTER LOGIC START ---
     let filterHtml = "";
     if (showOrgChart) {
-        const uniqueDivs = [...new Set(globalReports.map(u => (u[COL.div] || "").trim()).filter(Boolean))].sort();
-        // Manager Map Logic...
+        // Initial Populations (All)
+        const allDivs = [...new Set(globalReports.map(u => (u[COL.div] || "").trim()).filter(Boolean))].sort();
+        
+        // Initial Manager Map
         const mgrMap = new Map();
         globalReports.forEach(u => {
             let rawM = (u[COL.mgr] || "").toString();
             let match = allCompanyData.find(x => rawM.includes(x[COL.id]));
             if (match) { if (!mgrMap.has(match[COL.id])) mgrMap.set(match[COL.id], match[COL.name]); }
         });
-        const mgrOptions = Array.from(mgrMap.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+        const allMgrs = Array.from(mgrMap.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
 
         filterHtml = `
-         <div style="display:flex; justify-content:flex-end; gap:10px; margin-bottom:10px;">
-            <select id="org-filter-div" onchange="filterManagersByDiv()" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.8rem; background:#f9fafb; cursor:pointer;">
-                <option value="ALL">All Divisions</option>
-                ${uniqueDivs.map(d => `<option value="${d}">${d}</option>`).join('')}
+         <div style="display:flex; justify-content:flex-end; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+            <select id="org-filter-comp" onchange="cascadeFilters()" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.8rem; background:#f9fafb; cursor:pointer; font-weight:700;">
+                <option value="ALL">All Companies</option>
+                <option value="Zain Iraq">Zain Iraq</option>
+                <option value="Horizon">Horizon</option>
+                <option value="Next Generation">Next Generation</option>
             </select>
+
+            <select id="org-filter-div" onchange="updateOrgChart()" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.8rem; background:#f9fafb; cursor:pointer;">
+                <option value="ALL">All Divisions</option>
+                ${allDivs.map(d => `<option value="${d}">${d}</option>`).join('')}
+            </select>
+
             <select id="org-filter-mgr" onchange="updateOrgChart()" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.8rem; max-width:200px; background:#f9fafb; cursor:pointer;">
                 <option value="ALL">All Managers</option>
-                ${mgrOptions.map(m => `<option value="${m.id}">${m.name}</option>`).join('')}
+                ${allMgrs.map(m => `<option value="${m.id}">${m.name}</option>`).join('')}
             </select>
          </div>`;
     }
+    // --- NEW FILTER LOGIC END ---
 
-    // Generate Table Rows based on NEW calculation
+    // Build Table Rows
     const scoredReports = directReports.map(u => {
+        // ... (Same Score Logic as previous steps) ...
         let userGoals = u[COL.goals] || [];
         if (typeof userGoals === 'string') { try { userGoals = JSON.parse(userGoals); } catch (e) { userGoals = [] } }
         let w = getW(u[COL.lvl], u[COL.job]);
         let sScore = globalRating * (w.s / 100);
-        let iScore = 0; 
-        if(Array.isArray(userGoals)) userGoals.forEach(g => (iScore += (Number(g.rating) || 0) * (Number(g.weight) || 0)));
+        let iScore = 0; if(Array.isArray(userGoals)) userGoals.forEach(g => (iScore += (Number(g.rating) || 0) * (Number(g.weight) || 0)));
         let total = sScore + (iScore * (w.i / 100));
-        
         let b = 0, lbl = "IDLE"; 
-        if (total >= 5.5) { b = 5; lbl = "ASTRONAUT"; } 
-        else if (total >= 4.5) { b = 4; lbl = "FLYER"; } 
-        else if (total >= 3.5) { b = 3; lbl = "RUNNER"; } 
-        else if (total >= 2.5) { b = 2; lbl = "WALKER"; } 
-        else if (total >= 1.5) { b = 1; lbl = "STAGNANT"; }
-
+        if (total >= 5.5) { b = 5; lbl = "ASTRONAUT"; } else if (total >= 4.5) { b = 4; lbl = "FLYER"; } else if (total >= 3.5) { b = 3; lbl = "RUNNER"; } else if (total >= 2.5) { b = 2; lbl = "WALKER"; } else if (total >= 1.5) { b = 1; lbl = "STAGNANT"; }
         return { name: u[COL.name], score: total.toFixed(2), bucket: b, label: lbl, status: u[COL.stat] || 'Draft' };
     });
-
     scoredReports.sort((a, b) => b.score - a.score);
 
-    let tableRows = scoredReports.map(r => `
-        <tr>
-            <td style="font-weight:600;">${r.name}</td>
-            <td style="font-weight:700; text-align:center;">${r.score}</td>
-            <td style="text-align:center;">
-                <span style="font-size:0.75rem; font-weight:700; padding:4px 10px; border-radius:12px; background:${r.bucket >= 4 ? '#dcfce7' : (r.bucket >= 2 ? 'var(--primary-light)' : (r.bucket >= 0 ? '#fee2e2' : '#f1f5f9'))}; color:${r.bucket >= 4 ? 'var(--success)' : (r.bucket >= 2 ? 'var(--primary)' : (r.bucket >= 0 ? 'var(--danger)' : 'var(--text-muted)'))};">
-                    ${r.label}
-                </span>
-            </td>
-            <td style="text-align:right;">${r.status}</td>
-        </tr>`).join('');
+    let tableRows = scoredReports.map(r => `<tr><td style="font-weight:600;">${r.name}</td><td style="text-align:center;">${r.score}</td><td>${r.label}</td><td style="text-align:right;">${r.status}</td></tr>`).join('');
 
-    // HTML RENDER
     let h = `
     <div class="animate-in">
         <div class="header-bar">
-            <div><h2 class="page-title">Leadership Reports</h2><p class="page-sub">Analyzing Direct Reports & Organization</p></div>
-            <button class="btn btn-primary" onclick="loadReports()"><i class="fa-solid fa-rotate"></i> &nbsp; Refresh Data</button>
+            <div><h2 class="page-title">Leadership Reports</h2></div>
+            <button class="btn btn-primary" onclick="loadReports()"><i class="fa-solid fa-rotate"></i> Refresh</button>
         </div>
-        
         <div class="dash-grid" style="grid-template-columns: ${showOrgChart ? '1fr 1fr' : '1fr'};">
             <div class="card">
-                <h3 style="text-align:center; font-size:1rem; font-weight:700; margin-bottom:20px;">Direct Reports (${directReports.length})</h3>
+                <h3 style="text-align:center; font-weight:700; margin-bottom:20px;">Direct Reports (${directReports.length})</h3>
                 <div style="height:350px;"><canvas id="chartDirect"></canvas></div>
             </div>
             ${showOrgChart ? `
             <div class="card">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                     <h3 style="font-size:1rem; font-weight:700;">Total Organization</h3>
-                     <div style="font-size:0.8rem; color:var(--text-muted); font-weight:600;" id="org-count-lbl">(${globalReports.length})</div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                     <h3 style="font-weight:700;">Total Organization</h3>
+                     <div id="org-count-lbl" style="font-size:0.8rem;">(${globalReports.length})</div>
                 </div>
                 ${filterHtml}
                 <div style="height:350px;"><canvas id="chartOrg"></canvas></div>
             </div>` : ''}
         </div>
-
         <div class="card">
-            <h3 style="margin:0 0 20px 0;">Team Performance</h3>
+            <h3>Team Performance</h3>
             <div style="max-height:500px; overflow-y:auto;">
-                <table class="report-table">
-                    <thead><tr><th>Name</th><th style="text-align:center;">Score</th><th style="text-align:center;">Rating</th><th style="text-align:right;">Status</th></tr></thead>
-                    <tbody>${tableRows}</tbody>
-                </table>
+                <table class="report-table"><thead><tr><th>Name</th><th>Score</th><th>Rating</th><th>Status</th></tr></thead><tbody>${tableRows}</tbody></table>
             </div>
         </div>
     </div>`;
 
     render(h);
 
-    // Destroy old charts to prevent glitches
     if (chart1) chart1.destroy();
     chart1 = new Chart(document.getElementById('chartDirect'), { type: 'bar', data: { labels: ["IDLE", "STAGNANT", "WALKER", "RUNNER", "FLYER", "ASTRONAUT"], datasets: [{ label: 'Direct Reports', data: distDirect, backgroundColor: '#592C82', borderRadius: 4 }] }, options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { display: false } }, x: { grid: { display: false } } } } });
 
@@ -2691,49 +2646,165 @@ async function loadReports() {
         chartOrg = new Chart(document.getElementById('chartOrg'), { type: 'bar', data: { labels: ["IDLE", "STAGNANT", "WALKER", "RUNNER", "FLYER", "ASTRONAUT"], datasets: [{ label: 'Total Org', data: distOrg, backgroundColor: '#10b981', borderRadius: 4 }] }, options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { display: false } }, x: { grid: { display: false } } } } });
     }
 }
-        async function loadTeam() {
-            const myId = user[COL.id];
-            const myName = user[COL.name];
-            let filter = `${COL.mgr}.ilike.%${myId}%`;
-            if (myName) filter += `,${COL.mgr}.ilike.%${myName}%`;
 
-            const { data } = await db.from('active_list').select('*').or(filter);
+// --- NEW FUNCTION: Cascade Filters (Comp -> Div/Mgr) ---
+function cascadeFilters() {
+    const compVal = document.getElementById('org-filter-comp').value;
+    const divSelect = document.getElementById('org-filter-div');
+    const mgrSelect = document.getElementById('org-filter-mgr');
 
-            let h = `
-                <div class="animate-in">
-                    <div class="header-bar">
-                        <div><h2 class="page-title">My Team</h2><p class="page-sub">Direct Reports & Scorecards</p></div>
-                    </div>
-                    <div class="team-grid">`;
+    // 1. Filter the Global List by Company first
+    let subset = globalReports;
+    if (compVal !== 'ALL') {
+        subset = globalReports.filter(u => getCompany(u[COL.id]) === compVal);
+    }
 
-            if (data && data.length > 0) {
-                data.forEach(e => {
-                    let isSub = e[COL.stat] === 'Submitted to Manager';
-                    let isApp = e[COL.stat] === 'Approved';
-                    let statClass = 'draft';
-                    if (isSub) statClass = 'submitted';
-                    if (isApp) statClass = 'approved';
+    // 2. Get available Divisions in this subset
+    const availDivs = [...new Set(subset.map(u => (u[COL.div] || "").trim()).filter(Boolean))].sort();
+    
+    // 3. Get available Managers in this subset
+    const mgrMap = new Map();
+    subset.forEach(u => {
+        let rawM = (u[COL.mgr] || "").toString();
+        let match = allCompanyData.find(x => rawM.includes(x[COL.id]));
+        if (match) { if (!mgrMap.has(match[COL.id])) mgrMap.set(match[COL.id], match[COL.name]); }
+    });
+    const availMgrs = Array.from(mgrMap.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
 
-                    h += `
-                    <div class="premium-team-card" onclick="loadEval('${e[COL.id]}')">
-                        <div class="pt-status status-badge ${statClass}">${e[COL.stat] || 'Draft'}</div>
-                        <div class="pt-avatar">${e[COL.name].charAt(0)}</div>
-                        <div class="pt-info">
-                            <div class="pt-name">${e[COL.name].split('(')[0]}</div>
-                            <div class="pt-role">${e[COL.job] || 'Staff'}</div>
-                            <div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">${e[COL.id]}</div>
-                        </div>
-                        <div style="border-top:1px solid var(--border); padding-top:16px; display:flex; justify-content:center;">
-                            <button class="btn btn-outline" style="width:100%; justify-content:center; font-size:0.9rem;">View Scorecard</button>
-                        </div>
-                    </div>`;
-                });
-            } else {
-                h += `<div class="empty-state-message">No direct reports found.</div>`;
-            }
-            h += `</div></div>`;
-            render(h);
+    // 4. Update Dropdowns HTML
+    divSelect.innerHTML = `<option value="ALL">All Divisions</option>` + availDivs.map(d => `<option value="${d}">${d}</option>`).join('');
+    mgrSelect.innerHTML = `<option value="ALL">All Managers</option>` + availMgrs.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+
+    // 5. Update Chart
+    updateOrgChart();
+}
+
+// --- UPDATED Function: Update Chart based on selections ---
+function updateOrgChart() {
+    const compVal = document.getElementById('org-filter-comp').value;
+    const divVal = document.getElementById('org-filter-div').value;
+    const mgrVal = document.getElementById('org-filter-mgr').value;
+
+    let filteredData = globalReports;
+
+    // Filter 1: Company
+    if (compVal !== 'ALL') {
+        filteredData = filteredData.filter(u => getCompany(u[COL.id]) === compVal);
+    }
+
+    // Filter 2: Manager (Recursive Downstream)
+    if (mgrVal !== "ALL") {
+        const subTree = getDownstream(mgrVal, allCompanyData);
+        const validIds = new Set(filteredData.map(x => x[COL.id]));
+        filteredData = subTree.filter(x => validIds.has(x[COL.id]));
+    }
+
+    // Filter 3: Division
+    if (divVal !== "ALL") {
+        filteredData = filteredData.filter(u => (u[COL.div] || "").trim() === divVal);
+    }
+
+    // Update Count Label
+    document.getElementById('org-count-lbl').innerText = `(${filteredData.length})`;
+
+    // Recalculate Distribution
+    const globalRating = masterData.rating || 0;
+    let dist = [0, 0, 0, 0, 0, 0];
+
+    filteredData.forEach(u => {
+        let userGoals = u[COL.goals] || [];
+        if (typeof userGoals === 'string') { try { userGoals = JSON.parse(userGoals); } catch (e) { userGoals = [] } }
+        let w = getW(u[COL.lvl], u[COL.job]);
+        let sScore = globalRating * (w.s / 100);
+        let iScore = 0; 
+        if(Array.isArray(userGoals)) userGoals.forEach(g => (iScore += (Number(g.rating) || 0) * (Number(g.weight) || 0)));
+        let total = sScore + (iScore * (w.i / 100));
+        let b = 0; 
+        if (total >= 5.5) b = 5; else if (total >= 4.5) b = 4; else if (total >= 3.5) b = 3; else if (total >= 2.5) b = 2; else if (total >= 1.5) b = 1;
+        dist[b]++;
+    });
+
+    // Update Chart Data
+    chartOrg.data.datasets[0].data = dist;
+    chartOrg.update();
+}
+      async function loadTeam() {
+    const myId = user[COL.id];
+    const myName = user[COL.name];
+    
+    // Fetch my direct reports
+    let filter = `${COL.mgr}.ilike.%${myId}%`;
+    if (myName) filter += `,${COL.mgr}.ilike.%${myName}%`;
+    
+    const { data } = await db.from('active_list').select('*').or(filter);
+
+    let h = `
+    <div class="animate-in">
+        <div class="header-bar">
+            <div>
+                <h2 class="page-title">My Team</h2>
+                <p class="page-sub">Direct Reports & Scorecards</p>
+            </div>
+            <div>
+                <select id="team-comp-filter" onchange="filterTeamGrid()" style="padding:10px 16px; border-radius:10px; border:1px solid var(--border); font-weight:600; cursor:pointer;">
+                    <option value="ALL">All Companies</option>
+                    <option value="Zain Iraq">Zain Iraq</option>
+                    <option value="Horizon">Horizon</option>
+                    <option value="Next Generation">Next Generation</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="team-grid" id="team-grid-container">`;
+
+    if (data && data.length > 0) {
+        data.forEach(e => {
+            let isSub = e[COL.stat] === 'Submitted to Manager';
+            let isApp = e[COL.stat] === 'Approved';
+            let statClass = 'draft';
+            if (isSub) statClass = 'submitted';
+            if (isApp) statClass = 'approved';
+
+            // Calculate Company for filtering
+            const comp = getCompany(e[COL.id]);
+
+            // Add 'data-comp' attribute to the card for filtering
+            h += `
+            <div class="premium-team-card team-card-item" data-comp="${comp}" onclick="loadEval('${e[COL.id]}')">
+                <div class="pt-status status-badge ${statClass}">${e[COL.stat] || 'Draft'}</div>
+                <div class="pt-avatar">${e[COL.name].charAt(0)}</div>
+                <div class="pt-info">
+                    <div class="pt-name">${e[COL.name].split('(')[0]}</div>
+                    <div class="pt-role">${e[COL.job] || 'Staff'}</div>
+                    <div style="font-size:0.75rem; color:var(--primary); font-weight:700; margin-top:4px;">${comp}</div>
+                    <div style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">${e[COL.id]}</div>
+                </div>
+                <div style="border-top:1px solid var(--border); padding-top:16px; display:flex; justify-content:center;">
+                    <button class="btn btn-outline" style="width:100%; justify-content:center; font-size:0.9rem;">View Scorecard</button>
+                </div>
+            </div>`;
+        });
+    } else {
+        h += `<div class="empty-state-message">No direct reports found.</div>`;
+    }
+    h += `</div></div>`;
+    render(h);
+}
+
+// Helper function to filter the grid immediately
+function filterTeamGrid() {
+    const filter = document.getElementById('team-comp-filter').value;
+    const cards = document.querySelectorAll('.team-card-item');
+    
+    cards.forEach(card => {
+        const comp = card.getAttribute('data-comp');
+        if (filter === 'ALL' || comp === filter) {
+            card.style.display = 'flex';
+        } else {
+            card.style.display = 'none';
         }
+    });
+}
 
         // --- 9. SCORECARD ---
         async function loadEval(tid, isSearchMode = false) {
@@ -3656,6 +3727,7 @@ h += `</div></div>`; // Close container
 </body>
 
 </html>
+
 
 
 
