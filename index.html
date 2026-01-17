@@ -1631,32 +1631,19 @@ const { data, error } = await db.from('active_list')
 async function fetchAllData() {
     let allRows = [];
     let from = 0;
-    const step = 1000; // <--- This defines the 'step' variable
-    
+    const step = 1000;
     while (true) {
+        // Use a broader select to ensure we don't miss columns due to naming
         const { data, error } = await db.from('active_list')
-            .select('id, name, level, job, manager_id, status, division, department')
+            .select('*') 
             .range(from, from + step - 1);
         
-        if (error) { 
-            console.error("Batch fetch error:", error); 
-            return []; 
-        }
-        
-        if (!data || data.length === 0) {
-            break; 
-        }
-        
+        if (error) { console.error(error); return []; }
+        if (!data || data.length === 0) break;
         allRows = allRows.concat(data);
-        
-        // If we got fewer results than the step, we've reached the end
-        if (data.length < step) {
-            break; 
-        }
-        
+        if (data.length < step) break;
         from += step;
     }
-    
     return allRows;
 }
         function getCompany(id) {
@@ -1847,7 +1834,7 @@ async function fetchAllData() {
             document.getElementById('dir-tbody').innerHTML = list.map(u => `
             <tr>
                 <td style="font-weight:700; font-family:monospace; color:var(--primary);">${u[COL.id]}</td>
-                <td style="font-weight:600;">${u[COL.name]}</td>
+                <td style="font-weight:600;">${u[COL.name] || 'Unknown'}</td>
                 <td>${u[COL.job] || '-'}</td>
                 <td>${u[COL.div] || '-'}</td>
                 <td>${u[COL.mgr] || '-'}</td>
@@ -3753,6 +3740,7 @@ h += `</div></div>`; // Close container
     </style>
 </body>
 </html>
+
 
 
 
