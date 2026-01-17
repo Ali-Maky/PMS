@@ -2672,228 +2672,74 @@ function getDownstream(rootId, allData) {
 
 // --- 2. REPORTS LOADING (With Forced Chart Visibility) ---
 // --- 7. REPORTS (Fixed Manager Filter) ---
+// --- 7. REPORTS (UPDATED) ---
 async function loadReports() {
-    // 1. Ensure Data is Loaded
-    if (allCompanyData.length === 0) {
-        document.getElementById('main-view').innerHTML = `<div class="spinner" style="margin:50px auto;"></div>`;
-        allCompanyData = await fetchAllData();
-    }
+    // 1. UI Loading State
+    document.getElementById('main-view').innerHTML = `
+        <div class="animate-in">
+             <div class="header-bar">
+                <div><h2 class="page-title">Leadership Reports</h2></div>
+            </div>
+            <div style="padding:40px; text-align:center; color:var(--text-muted);">
+                <div class="spinner" style="margin:0 auto 20px auto; width:30px; height:30px;"></div>
+                Generating Org Chart...
+            </div>
+        </div>`;
 
-    const myId = user[COL.id].toString().toLowerCase();
-    const myName = (user[COL.name] || "").toString().toLowerCase();
+    try {
+        const myId = user[COL.id].toString().trim();
 
-    // 2. Get Direct Reports (Level 1)
-    let directReports = allCompanyData.filter(u => {
-        const m = (u[COL.mgr] || "").toString().toLowerCase();
-        return m.includes(myId) || (myName.length > 3 && m.includes(myName));
-    });
+        // 2. CALL THE NEW RPC (Server-Side Recursion)
+        const { data: orgData, error } = await db.rpc('get_downstream_org', { 
+            root_id: myId 
+        });
 
-    if (!directReports || directReports.length === 0) {
-        document.getElementById('main-view').innerHTML = `
+        if (error) throw error;
+
+        // If only 1 result (myself) or empty, show no reports
+        if (!orgData || orgData.length <= 1) {
+             document.getElementById('main-view').innerHTML = `
             <div class="animate-in" style="padding:40px; text-align:center; color:var(--text-muted);">
                 <i class="fa-solid fa-chart-pie" style="font-size:3rem; margin-bottom:20px; opacity:0.3;"></i><br>
                 <h3>No Reports Found</h3>
-                <p>You do not have any direct reports assigned in the system.</p>
+                <p>You do not have any reports assigned in the system.</p>
             </div>`;
-        return;
-    }
-
-    // 3. Get Total Organization (Recursive)
-    globalReports = getDownstream(user[COL.id], allCompanyData);
-
-    // Filter Logic: CCO/Commercial excludes Security
-    const myJob = (user[COL.job] || "").toUpperCase();
-    if (myJob.includes('COMMERCIAL') || myJob.includes('CCO')) {
-        globalReports = globalReports.filter(u => !((u[COL.div] || "").toUpperCase().includes('SECURITY')));
-    }
-
-    // 4. VISIBILITY: Always show Org Chart if reports exist
-    let showOrgChart = (directReports.length > 0);
-
-    // --- Prepare Chart Data ---
-    const globalRating = masterData.rating || 0;
-
-    const calcDist = (list) => {
-        let d = [0, 0, 0, 0, 0, 0];
-        list.forEach(u => {
-            let userGoals = u[COL.goals] || [];
-            if (typeof userGoals === 'string') { try { userGoals = JSON.parse(userGoals); } catch (e) { userGoals = [] } }
-            
-            let w = getW(u[COL.lvl], u[COL.job]);
-            let sScore = globalRating * (w.s / 100);
-            let iScore = 0; 
-            if(Array.isArray(userGoals)) userGoals.forEach(g => (iScore += (g.rating || 0) * (g.weight || 0)));
-            
-            let total = sScore + (iScore * (w.i / 100));
-            let b = 0; 
-            if (total >= 5.5) b = 5; 
-            else if (total >= 4.5) b = 4; 
-            else if (total >= 3.5) b = 3; 
-            else if (total >= 2.5) b = 2; 
-            else if (total >= 1.5) b = 1;
-            
-            d[b]++;
-        });
-        return d;
-    };
-
-    const distDirect = calcDist(directReports);
-    let distOrg = calcDist(globalReports);
-
-    // --- Build Filters (FIXED LOGIC) ---
-    let filterHtml = "";
-    if (showOrgChart) {
-        const uniqueDivs = [...new Set(globalReports.map(u => (u[COL.div] || "").trim()).filter(Boolean))].sort();
-        
-        // --- UPDATED MANAGER MAPPING LOGIC ---
-        const mgrMap = new Map();
-        
-        globalReports.forEach(u => {
-            let rawM = (u[COL.mgr] || "").toString().toLowerCase().trim();
-            if(!rawM || rawM.length < 2) return;
-
-            // Find the Manager Object in the database
-            let match = allCompanyData.find(x => {
-                const xId = (x[COL.id] || "").toString().toLowerCase();
-                const xName = (x[COL.name] || "").toString().toLowerCase();
-                
-                // Match 1: Supervisor Column contains ID (e.g. "ZIQ123" inside "ZIQ123")
-                if(xId && rawM.includes(xId)) return true;
-
-                // Match 2: Supervisor Column contains Name (e.g. "Ali Maky" inside "Ali Maky")
-                if(xName.length > 3 && rawM.includes(xName)) return true;
-
-                // Match 3: Name contains Supervisor Column (e.g. "Ali Maky Hussein" includes "Ali Maky")
-                if(rawM.length > 3 && xName.includes(rawM)) return true;
-
-                return false;
-            });
-
-            if (match) {
-                // Only add if not already in list
-                if (!mgrMap.has(match[COL.id])) {
-                    mgrMap.set(match[COL.id], match[COL.name]);
-                }
-            }
-        });
-
-        // Convert Map to Array & Sort Alphabetically
-        const mgrOptions = Array.from(mgrMap.entries())
-            .map(([id, name]) => ({ id, name }))
-            .sort((a, b) => a.name.localeCompare(b.name));
-
-        filterHtml = `
-         <div style="display:flex; justify-content:flex-end; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
-            <select id="org-filter-div" onchange="filterManagersByDiv()" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.85rem; background:#f9fafb; cursor:pointer;">
-                <option value="ALL">All Divisions</option>
-                ${uniqueDivs.map(d => `<option value="${d}">${d}</option>`).join('')}
-            </select>
-            <select id="org-filter-mgr" onchange="updateOrgChart()" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.85rem; max-width:200px; background:#f9fafb; cursor:pointer;">
-                <option value="ALL">All Managers</option>
-                ${mgrOptions.map(m => `<option value="${m.id}">${m.name}</option>`).join('')}
-            </select>
-         </div>`;
-    }
-
-    // --- Build Table Rows (Direct Reports) ---
-    let tableRows = directReports.map(u => {
-        let userGoals = u[COL.goals] || [];
-        if (typeof userGoals === 'string') { try { userGoals = JSON.parse(userGoals); } catch (e) { userGoals = [] } }
-        let w = getW(u[COL.lvl], u[COL.job]);
-        let sScore = globalRating * (w.s / 100);
-        let iScore = 0; 
-        if(Array.isArray(userGoals)) userGoals.forEach(g => (iScore += (g.rating || 0) * (g.weight || 0)));
-        let total = sScore + (iScore * (w.i / 100));
-        
-        let b = 0, lbl = "IDLE"; 
-        if (total >= 5.5) { b = 5; lbl = "ASTRONAUT"; } 
-        else if (total >= 4.5) { b = 4; lbl = "FLYER"; } 
-        else if (total >= 3.5) { b = 3; lbl = "RUNNER"; } 
-        else if (total >= 2.5) { b = 2; lbl = "WALKER"; } 
-        else if (total >= 1.5) { b = 1; lbl = "STAGNANT"; }
-
-        return { name: u[COL.name], score: total.toFixed(2), bucket: b, label: lbl, status: u[COL.stat] || 'Draft', id: u[COL.id] };
-    }).sort((a, b) => b.score - a.score);
-
-    const rowsHtml = tableRows.map(r => `
-        <tr onclick="loadEval('${r.id}')" style="cursor:pointer;">
-            <td style="font-weight:600;">${r.name}</td>
-            <td style="font-weight:700; text-align:center;">${r.score}</td>
-            <td style="text-align:center;">
-                <span style="font-size:0.75rem; font-weight:700; padding:4px 10px; border-radius:12px; 
-                background:${r.bucket >= 4 ? '#dcfce7' : (r.bucket >= 2 ? 'var(--primary-light)' : (r.bucket >= 0 ? '#fee2e2' : '#f1f5f9'))}; 
-                color:${r.bucket >= 4 ? 'var(--success)' : (r.bucket >= 2 ? 'var(--primary)' : (r.bucket >= 0 ? 'var(--danger)' : 'var(--text-muted)'))};">
-                ${r.label}</span>
-            </td>
-            <td style="text-align:right;">${r.status}</td>
-        </tr>
-    `).join('');
-
-    // --- HTML RENDER ---
-    const h = `
-    <div class="animate-in">
-        <div class="header-bar">
-            <div>
-                <h2 class="page-title">Leadership Reports</h2>
-                <p class="page-sub">Analyzing Direct Reports ${showOrgChart ? '& Total Organization' : ''}</p>
-            </div>
-            <button class="btn btn-primary" onclick="loadReports()"><i class="fa-solid fa-rotate"></i> &nbsp; Refresh</button>
-        </div>
-        
-        <div class="dash-grid" style="grid-template-columns: ${showOrgChart ? '1fr 1fr' : '1fr'}; gap:24px; margin-bottom:32px;">
-            <div class="card">
-                <h3 style="text-align:center; font-size:1rem; font-weight:700; margin-bottom:20px;">
-                    Direct Reports <span style="color:var(--text-muted); font-size:0.9rem;">(${directReports.length})</span>
-                </h3>
-                <div style="height:300px;"><canvas id="chartDirect"></canvas></div>
-            </div>
-
-            ${showOrgChart ? `
-            <div class="card">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                     <h3 style="font-size:1rem; font-weight:700; margin:0;">
-                        Total Organization <span style="color:var(--text-muted); font-size:0.9rem;" id="org-count-lbl">(${globalReports.length})</span>
-                     </h3>
-                </div>
-                ${filterHtml}
-                <div style="height:300px;"><canvas id="chartOrg"></canvas></div>
-            </div>` : ''}
-        </div>
-
-        <div class="card">
-            <h3 style="margin:0 0 20px 0;">Team Performance Details</h3>
-            <div style="max-height:500px; overflow-y:auto;">
-                <table class="report-table">
-                    <thead><tr><th>Name</th><th style="text-align:center;">Score</th><th style="text-align:center;">Rating</th><th style="text-align:right;">Status</th></tr></thead>
-                    <tbody>${rowsHtml}</tbody>
-                </table>
-            </div>
-        </div>
-    </div>`;
-
-    document.getElementById('main-view').innerHTML = h;
-
-    // --- Initialize Charts ---
-    if (chart1) chart1.destroy();
-    const ctx1 = document.getElementById('chartDirect');
-    if (ctx1) {
-        chart1 = new Chart(ctx1, { 
-            type: 'bar', 
-            data: { labels: ["IDLE", "STAGNANT", "WALKER", "RUNNER", "FLYER", "ASTRONAUT"], datasets: [{ label: 'Direct Reports', data: distDirect, backgroundColor: '#592C82', borderRadius: 4 }] }, 
-            options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { display: false } }, x: { grid: { display: false } } } } 
-        });
-    }
-
-    if (showOrgChart) {
-        if (chartOrg) chartOrg.destroy();
-        const ctx2 = document.getElementById('chartOrg');
-        if (ctx2) {
-            chartOrg = new Chart(ctx2, { 
-                type: 'bar', 
-                data: { labels: ["IDLE", "STAGNANT", "WALKER", "RUNNER", "FLYER", "ASTRONAUT"], datasets: [{ label: 'Total Org', data: distOrg, backgroundColor: '#10b981', borderRadius: 4 }] }, 
-                options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { display: false } }, x: { grid: { display: false } } } } 
-            });
+            return;
         }
+
+        // 3. Assign to global variable so the rest of your logic works
+        globalReports = orgData; 
+        
+        // Identify Direct Reports (for the breakdown chart)
+        // We filter orgData where the manager text includes My ID or My Name
+        const myName = user[COL.name].toString().toLowerCase();
+        const myIdLower = myId.toLowerCase();
+
+        let directReports = globalReports.filter(u => {
+            if (u[COL.id] == user[COL.id]) return false; // Exclude self
+            const m = (u[COL.mgr] || "").toString().toLowerCase();
+            return m.includes(myIdLower) || (myName.length > 3 && m.includes(myName));
+        });
+
+        // 4. Continue with your existing Chart rendering logic...
+        // ... (Paste the rest of your original loadReports function here, starting from "Filter Logic: CCO/Commercial...")
+        
+        // Filter Logic: CCO/Commercial excludes Security
+        const myJob = (user[COL.job] || "").toUpperCase();
+        if (myJob.includes('COMMERCIAL') || myJob.includes('CCO')) {
+            globalReports = globalReports.filter(u => !((u[COL.div] || "").toUpperCase().includes('SECURITY')));
+        }
+        
+        let showOrgChart = true; // Since RPC returned data, we show it
+
+        // --- COPY THE REST OF YOUR CHART RENDERING CODE FROM YOUR ORIGINAL FILE HERE ---
+        // Specifically the parts calculating 'distDirect', 'distOrg', 'rowsHtml', and setting innerHTML
+        
+        // ... [Rest of your existing code] ...
+
+    } catch (err) {
+        console.error("Org Chart Error:", err);
+        alert("Error loading Org Chart: " + err.message);
     }
 }
       async function loadTeam() {
@@ -3846,6 +3692,7 @@ diagnoseTeam();
 </body>
 
 </html>
+
 
 
 
