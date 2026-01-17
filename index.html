@@ -1630,21 +1630,34 @@ const { data, error } = await db.from('active_list')
         // --- BATCHED FETCH HELPER ---
 async function fetchAllData() {
     let allRows = [];
-   // Inside fetchAllData - 'from' is defined locally here
-let from = 0; 
-const { data, error } = await db.from('active_list')
-    .select('id, name, level, job, manager_id, status, division, department')
-    .range(from, from + step - 1);
+    let from = 0;
+    const step = 1000;
+    
+    while (true) { // <--- The loop starts here
+        const { data, error } = await db.from('active_list')
+            .select('id, name, level, job, manager_id, status, division, department')
+            .range(from, from + step - 1);
         
-        if (error) { console.error(error); return []; }
-        if (!data || data.length === 0) break;
+        if (error) { 
+            console.error(error); 
+            return []; 
+        }
+        
+        if (!data || data.length === 0) {
+            break; // <--- This 'break' is ONLY allowed inside the while loop
+        }
+        
         allRows = allRows.concat(data);
-        if (data.length < step) break;
+        
+        if (data.length < step) {
+            break; // <--- This 'break' is ONLY allowed inside the while loop
+        }
+        
         from += step;
-    }
+    } // <--- The loop MUST end after the 'break' statements
+    
     return allRows;
 }
-
         function getCompany(id) {
     if (!id) return "Unknown";
     const clean = id.toString().toUpperCase().trim();
@@ -3739,6 +3752,7 @@ h += `</div></div>`; // Close container
     </style>
 </body>
 </html>
+
 
 
 
