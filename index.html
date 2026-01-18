@@ -3178,6 +3178,10 @@ function filterTeamGrid() {
                     <div class="info-value">${data[COL.job] || '-'}</div>
                 </div>
                 <div class="info-item">
+                    <label>Division</label>
+                    <div class="info-value">${data[COL.div] || '-'}</div>
+                </div>
+                <div class="info-item">
                     <label>Direct Manager</label>
                     <div class="info-value">${mName}</div>
                 </div>
@@ -3192,7 +3196,6 @@ function filterTeamGrid() {
                     <div class="info-value" style="color:var(--primary); font-weight:700;">${comp}</div>
                 </div>
             </div>`;
-
         const managerBlocked = (isDirectSupervisor && (stat === 'Draft' || stat === 'Returned'));
 
         if (managerBlocked && !['Admin', 'Master'].includes(uRole)) {
@@ -4011,6 +4014,7 @@ function filterTeamGrid() {
     </style>
 </body>
 </html>
+
 
 
 
