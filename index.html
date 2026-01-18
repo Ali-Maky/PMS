@@ -1713,26 +1713,27 @@ async function fetchAllData() {
     }
     return allRows;
 }
-        function getCompany(id) {
+       function getCompany(id) {
     if (!id) return "Unknown";
     const clean = id.toString().toUpperCase().trim();
 
-    // 1. Zain Iraq Check (ZIQ & ZIQT)
-    if (clean.includes("ZIQ") || clean.includes("ZIQT")) {
-        return "Zain Iraq";
-    }
-
-    // 2. Horizon Check (HISP, HCS, AWO)
-    if (clean.includes("HISP") || clean.includes("HCS") || clean.includes("AWO")) {
+    // 1. Horizon Check (HISP, HCS, HSC, AWO)
+    if (clean.startsWith("HISP") || clean.startsWith("HCS") || clean.startsWith("HSC") || clean.startsWith("AWO")) {
         return "Horizon";
     }
 
-    // 3. Next Generation Check (NG, NGM, NGT)
-    if (clean.includes("NG")) return "Next Generation";
+    // 2. Next Generation Check (NG, NGM, NGT)
+    if (clean.startsWith("NG") || clean.startsWith("NGM") || clean.startsWith("NGT") ) {
+        return "Next Generation";
+    }
+
+    // 3. Zain Iraq Check (ZIQ & ZIQT)
+    if (clean.startsWith("ZIQ") || clean.startsWith("ZIQT")) {
+        return "Zain Iraq";
+    }
 
     return "Other";
 }
-
         async function launchApp() {
             document.getElementById('loading-overlay').classList.add('hidden');
             document.getElementById('login-screen').classList.add('hidden');
@@ -3144,10 +3145,8 @@ function filterTeamGrid() {
 
         let mName = data[COL.mgr] || '-'; if (mName.includes('(')) mName = mName.split('(')[0];
         
-        let comp = "Zain Iraq";
-        const cleanId = (data[COL.id] || "").toString().toUpperCase();
-        if (cleanId.startsWith("HISP")) comp = "Horizon";
-        else if (cleanId.startsWith("NG")) comp = "Next Generation";
+       // Use the centralized helper to ensure logic is the same everywhere
+let comp = getCompany(data[COL.id]);
 
         // START OF CORRECTED HTML WRAPPING
         let h = `
@@ -4134,6 +4133,7 @@ async function showHistory(empId, fromAdmin = false) {
     </style>
 </body>
 </html>
+
 
 
 
