@@ -20,6 +20,15 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
        
       <style>
+             .metric-sub-val {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--primary);
+    background: var(--primary-light);
+    padding: 2px 8px;
+    border-radius: 6px;
+    margin-left: 8px;
+}
              .pro-goal-meta {
     display: flex;
     align-items: center;
@@ -3430,38 +3439,54 @@ h += `</div></div>`; // Close container
             const myId = (user[COL.id] || '').toString();
             const targetId = (targetUser[COL.id] || '').toString();
             const viewingSelf = (myId === targetId);
-            const w = getW(targetUser[COL.lvl], targetUser[COL.job]);
-            const globalRating = masterData.rating || 0;
-            const sScore = globalRating * (w.s / 100);
-            let iScore = 0;
+ // --- NEW CALCULATION & DISPLAY LOGIC ---
+const w = getW(targetUser[COL.lvl], targetUser[COL.job]);
+const globalRating = masterData.rating || 0;
 
-            if (targetUser[COL.goals]) {
-                targetUser[COL.goals].forEach(g => iScore += (g.rating || 0) * (g.weight || 0));
-            }
+// 1. Calculate Shared Contribution (e.g., 5 * 0.05 = 0.25)
+const sharedGoalScore = globalRating * (w.s / 100);
 
-            const total = sScore + (iScore * (w.i / 100));
-            const uRole = getRole(user);
-            const stat = targetUser[COL.stat];
-            const showScoreToViewer = (stat === 'Approved') || (isManager && !viewingSelf) || (['Admin', 'Master'].includes(uRole) && !viewingSelf);
+// 2. Calculate Individual Contribution (e.g., 4.5 * 0.95 = 4.275)
+let rawIndivRatingSum = 0;
+if (targetUser[COL.goals]) {
+    targetUser[COL.goals].forEach(g => {
+        rawIndivRatingSum += (Number(g.rating) || 0) * (Number(g.weight) || 0);
+    });
+}
+const individualGoalScore = rawIndivRatingSum * (w.i / 100);
 
-            const scoreEl = document.getElementById('score');
-            const ratingEl = document.getElementById('rating');
+// 3. Final Total (Keep this decimal for hidden database/report logic)
+const total = sharedGoalScore + individualGoalScore;
 
-            if (showScoreToViewer) {
-                scoreEl.innerText = total.toFixed(2);
-                let lbl = "-";
-                if (total >= 5.5) lbl = "ASTRONAUT";
-                else if (total >= 4.5) lbl = "FLYER";
-                else if (total >= 3.5) lbl = "RUNNER";
-                else if (total >= 2.5) lbl = "WALKER";
-                else if (total >= 1.5) lbl = "STAGNANT";
-                else if (total > 0) lbl = "IDLE";
-                ratingEl.innerText = lbl;
-            } else {
-                scoreEl.innerHTML = '<i class="fa-solid fa-lock" style="font-size:1.5rem; opacity:0.3;"></i>';
-                ratingEl.innerText = "Pending HR";
-            }
-        }
+// 4. Update the UI Elements
+const scoreEl = document.getElementById('score');
+const ratingEl = document.getElementById('rating');
+
+// Check visibility permissions (same logic as before)
+const myId = (user[COL.id] || '').toString();
+const targetId = (targetUser[COL.id] || '').toString();
+const viewingSelf = (myId === targetId);
+const uRole = getRole(user);
+const stat = targetUser[COL.stat];
+const showScoreToViewer = (stat === 'Approved') || (isManager && !viewingSelf) || (['Admin', 'Master'].includes(uRole) && !viewingSelf);
+
+if (showScoreToViewer) {
+    // ROUNDED DISPLAY for the main badge
+    scoreEl.innerText = Math.round(total);
+    
+    // Determine the Label based on the precise decimal (total)
+    let lbl = "-";
+    if (total >= 5.5) lbl = "ASTRONAUT";
+    else if (total >= 4.5) lbl = "FLYER";
+    else if (total >= 3.5) lbl = "RUNNER";
+    else if (total >= 2.5) lbl = "WALKER";
+    else if (total >= 1.5) lbl = "STAGNANT";
+    else if (total > 0) lbl = "IDLE";
+    ratingEl.innerText = lbl;
+} else {
+    scoreEl.innerHTML = '<i class="fa-solid fa-lock" style="font-size:1.5rem; opacity:0.3;"></i>';
+    ratingEl.innerText = "Pending HR";
+}
 
         function autoSave() {
             if (SUPABASE_URL.includes("YOUR")) return;
@@ -3947,6 +3972,7 @@ h += `</div></div>`; // Close container
     </style>
 </body>
 </html>
+
 
 
 
