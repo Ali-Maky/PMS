@@ -1643,7 +1643,7 @@
 const { data, error } = await db.from('active_list')
     .select('id, name, level, job, manager_id, status, goals, division, department, password, access_role')
     .eq(COL.id, id)
-    .maybeSingle();; // Better than .single() to avoid console errors if ID is missing
+    .maybeSingle(); // Better than .single() to avoid console errors if ID is missing
 
     if (error || !data) { 
         btn.innerText = "Continue"; 
@@ -3888,6 +3888,7 @@ h += `</div></div>`; // Close container
             </div>
 
             <input type="hidden" id="um-orig-id">
+               
 <div class="dash-grid" style="grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px;">
     
     <div style="grid-column:1/-1;">
@@ -4040,6 +4041,7 @@ h += `</div></div>`; // Close container
     </style>
 </body>
 </html>
+
 
 
 
