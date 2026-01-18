@@ -3883,8 +3883,18 @@ function filterTeamGrid() {
         <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Employee ID</label>
         <input id="um-id" class="login-input" style="margin-top:4px;" placeholder="ID (e.g. ZIQ...)">
     </div>
-    
+
+    <div>
+        <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Division</label>
+        <input id="um-div" class="login-input" style="margin-top:4px;" placeholder="e.g. Technology">
     </div>
+
+    <div>
+        <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Direct Manager</label>
+        <input id="um-mgr" class="login-input" style="margin-top:4px;" placeholder="Manager Name or ID">
+    </div>
+    
+</div>
             <div style="display:flex; justify-content:flex-end; gap:12px;">
                 <button class="btn btn-outline" onclick="closeUserModal()">Cancel</button>
                 <button id="um-btn" class="btn btn-primary" onclick="saveUser()">Save Changes</button>
@@ -4014,6 +4024,7 @@ function filterTeamGrid() {
     </style>
 </body>
 </html>
+
 
 
 
