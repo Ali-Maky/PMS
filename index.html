@@ -2019,6 +2019,9 @@ function renderDirectoryTable(list) {
  * PROCESS BULK SCORECARD IMPORT
  * This function reads an Excel file and assigns goals to multiple employees at once.
  */
+/**
+ * PROCESS BULK SCORECARD IMPORT (Chunked Version)
+ */
 async function processBulkImport(inp) {
     const file = inp.files[0]; 
     if (!file) return;
@@ -2033,7 +2036,6 @@ async function processBulkImport(inp) {
             if (json.length === 0) { alert("Excel file is empty."); return; }
 
             const grouped = {};
-            // Robust value finder to ignore spaces and case
             const getVal = (row, candidates) => {
                 const keys = Object.keys(row);
                 for (let c of candidates) {
@@ -2043,6 +2045,7 @@ async function processBulkImport(inp) {
                 return "";
             };
 
+            // Grouping goals by Employee ID
             json.forEach(r => {
                 const empIdRaw = getVal(r, ['EmployeeID', 'ID', 'Employee Number', 'EmpID']);
                 if (!empIdRaw) return;
@@ -2051,7 +2054,7 @@ async function processBulkImport(inp) {
                 if (!grouped[eid]) grouped[eid] = [];
 
                 let w = parseFloat(getVal(r, ['Weight', 'Wt', 'W%'])) || 0;
-                if (w > 1) w = w / 100; // Auto-convert 20 to 0.20
+                if (w > 1) w = w / 100;
 
                 grouped[eid].push({
                     title: getVal(r, ['Objective', 'Title', 'Goal', 'KPI']) || "New Objective",
@@ -2069,31 +2072,47 @@ async function processBulkImport(inp) {
 
             const empIds = Object.keys(grouped);
             if (empIds.length === 0) {
-                alert("Import Error: No valid 'Employee ID' or 'ID' column found in your Excel.");
+                alert("Import Error: No valid 'Employee ID' column found.");
                 return;
             }
 
             if (!confirm(`Importing objectives for ${empIds.length} employees. Proceed?`)) return;
 
             showSaving();
-            let success = 0; let fail = 0;
+            
+            // --- CHUNKING LOGIC START ---
+            const CHUNK_SIZE = 20; // Process 20 employees at a time
+            let success = 0; 
+            let fail = 0;
 
-            for (const eid of empIds) {
-                const { error } = await db.from('active_list')
-                    .update({ goals: grouped[eid] })
-                    .eq(COL.id, eid);
+            for (let i = 0; i < empIds.length; i += CHUNK_SIZE) {
+                const chunk = empIds.slice(i, i + CHUNK_SIZE);
                 
-                if (!error) success++; else fail++;
+                // Update the UI so the user sees progress
+                document.getElementById('save-text').innerText = `Processing ${i} / ${empIds.length}...`;
+
+                const promises = chunk.map(eid => 
+                    db.from('active_list')
+                      .update({ goals: grouped[eid] })
+                      .eq(COL.id, eid)
+                );
+
+                const results = await Promise.all(promises);
+                
+                results.forEach(res => {
+                    if (!res.error) success++; else fail++;
+                });
             }
+            // --- CHUNKING LOGIC END ---
 
             showSaved();
             alert(`Import Finished!\n✅ Updated: ${success}\n❌ Failed: ${fail}`);
-            allCompanyData = await fetchAllData(); // Refresh local directory
+            allCompanyData = await fetchAllData(); 
             inp.value = '';
 
         } catch (err) { 
             console.error("Import Error:", err); 
-            alert("Unexpected error during import. Check the browser console."); 
+            alert("Unexpected error during import."); 
         }
     };
     reader.readAsArrayBuffer(file);
@@ -4143,6 +4162,7 @@ async function showHistory(empId, fromAdmin = false) {
     </style>
 </body>
 </html>
+
 
 
 
