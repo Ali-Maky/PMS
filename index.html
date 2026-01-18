@@ -2896,32 +2896,39 @@ function cascadeFilters() {
     const divVal = document.getElementById('org-filter-div').value;
     const divSelect = document.getElementById('org-filter-div');
     const mgrSelect = document.getElementById('org-filter-mgr');
+    
+    // Identify which dropdown triggered the change
+    const triggerId = event ? event.target.id : null;
 
-    // 1. Filter the Global List by Company first
-    let subset = globalReports;
+    // 1. BASE SUBSET: Filter global data by Company selection
+    let companySubset = globalReports;
     if (compVal !== 'ALL') {
-        subset = globalReports.filter(u => getCompany(u[COL.id]) === compVal);
+        companySubset = globalReports.filter(u => getCompany(u[COL.id]) === compVal);
     }
 
-    // 2. Update the Divisions dropdown based on the Company selection
-    // (Only run this if the trigger was the Company dropdown)
-    if (event && event.target.id === 'org-filter-comp') {
-        const availDivs = [...new Set(subset.map(u => (u[COL.div] || "").trim()).filter(Boolean))].sort();
+    // 2. UPDATE DIVISIONS: Only refresh if the Company was changed
+    if (triggerId === 'org-filter-comp' || !triggerId) {
+        const availDivs = [...new Set(companySubset.map(u => (u[COL.div] || "").trim()).filter(Boolean))].sort();
+        
         divSelect.innerHTML = `<option value="ALL">All Divisions</option>` + 
                                availDivs.map(d => `<option value="${d}">${d}</option>`).join('');
+        
+        // Reset division to ALL when company changes to prevent orphaned selections
+        divSelect.value = "ALL";
     }
 
-    // 3. Further filter the subset by Division to find relevant Managers
-    let mgrSubset = subset;
-    if (divVal !== 'ALL') {
-        mgrSubset = subset.filter(u => (u[COL.div] || "").trim() === divVal);
+    // 3. UPDATE MANAGERS: Filter by current Company Subset AND current Division Selection
+    const currentDiv = divSelect.value;
+    let managerSubset = companySubset;
+    
+    if (currentDiv !== 'ALL') {
+        managerSubset = companySubset.filter(u => (u[COL.div] || "").trim() === currentDiv);
     }
 
-    // 4. Extract unique Managers from this specific Division/Company subset
+    // Extract unique Managers from the filtered results
     const mgrMap = new Map();
-    mgrSubset.forEach(u => {
+    managerSubset.forEach(u => {
         let rawM = (u[COL.mgr] || "").toString();
-        // Match manager ID within allCompanyData to get their Name
         let match = allCompanyData.find(x => rawM.includes(x[COL.id]));
         if (match) { 
             if (!mgrMap.has(match[COL.id])) mgrMap.set(match[COL.id], match[COL.name]); 
@@ -2932,14 +2939,13 @@ function cascadeFilters() {
         .map(([id, name]) => ({ id, name }))
         .sort((a, b) => a.name.localeCompare(b.name));
 
-    // 5. Update Manager Dropdown HTML
+    // Update Manager Dropdown
     mgrSelect.innerHTML = `<option value="ALL">All Managers</option>` + 
                            availMgrs.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
 
-    // 6. Refresh the Chart
+    // 4. REFRESH VISUALS
     updateOrgChart();
 }
-
 // --- UPDATED Function: Update Chart based on selections ---
 function updateOrgChart() {
     const compVal = document.getElementById('org-filter-comp').value;
@@ -4042,6 +4048,7 @@ function filterTeamGrid() {
     </style>
 </body>
 </html>
+
 
 
 
