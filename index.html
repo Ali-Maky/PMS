@@ -3117,34 +3117,27 @@ if (isSearchMode) canEdit = false;
                         ${isManager ? `<button onclick="${isDirectSupervisor ? 'loadTeam()' : 'loadHRAdmin()'}" class="btn btn-outline"><i class="fa-solid fa-arrow-left"></i> &nbsp; Back to List</button>` : ''}
                     </div>
                    
-                   <div class="metrics-row">
+                 <div class="metrics-row">
     <div class="metric-card highlight">
-        <div class="metric-val" id="score">
-            ${showScoreToViewer ? Math.round(total) : '<i class="fa-solid fa-lock" style="font-size:1.5rem; opacity:0.5;"></i>'}
-        </div>
-        <div class="metric-lbl">${showScoreToViewer ? 'Final Score' : 'Score Hidden'}</div>
+        <div class="metric-val" id="score">--</div>
+        <div class="metric-lbl">Final Score</div>
     </div>
-    
     <div class="metric-card">
-        <div class="metric-val" id="rating" style="color:var(--primary);">
-            ${showScoreToViewer ? getRatingLabel(total) : '--'}
-        </div>
-        <div class="metric-lbl">${showScoreToViewer ? 'Final Rating' : 'Pending HR'}</div>
+        <div class="metric-val" id="rating">--</div>
+        <div class="metric-lbl">Rating</div>
     </div>
-
     <div class="metric-card">
-        <div class="metric-val" style="color:var(--text-muted);">${w.s}%</div>
+        <div class="metric-val">${w.s}%</div>
         <div class="metric-lbl">
             Shared Goals
-            ${showScoreToViewer ? `<span class="metric-sub-val">${sharedGoalScore.toFixed(2)}</span>` : ''}
+            <span class="metric-sub-val" id="shared-contrib-val">0.00</span>
         </div>
     </div>
-
     <div class="metric-card">
-        <div class="metric-val" style="color:var(--text-muted);">${w.i}%</div>
+        <div class="metric-val">${w.i}%</div>
         <div class="metric-lbl">
             Individual Goals
-            ${showScoreToViewer ? `<span class="metric-sub-val">${individualGoalScore.toFixed(2)}</span>` : ''}
+            <span class="metric-sub-val" id="indiv-contrib-val">0.00</span>
         </div>
     </div>
 </div>
@@ -3453,17 +3446,14 @@ h += `</div></div>`; // Close container
         function addG() { openGoalModal(); }
         async function delG(i) { if (confirm("Delete goal?")) { targetUser[COL.goals].splice(i, 1); renderGoals(true); calc(); autoSave(); } }
 
-     function calc() {
+   function calc() {
     if (!targetUser) return;
 
-    // 1. Get Weights and Global Data
+    // 1. Calculations
     const w = getW(targetUser[COL.lvl], targetUser[COL.job]);
     const globalRating = masterData.rating || 0;
-
-    // 2. Calculate Shared Contribution
     const sharedGoalScore = globalRating * (w.s / 100);
 
-    // 3. Calculate Individual Contribution
     let rawIndivSum = 0;
     if (targetUser[COL.goals]) {
         targetUser[COL.goals].forEach(g => {
@@ -3471,25 +3461,29 @@ h += `</div></div>`; // Close container
         });
     }
     const individualGoalScore = rawIndivSum * (w.i / 100);
-
-    // 4. Total Precise Score
     const total = sharedGoalScore + individualGoalScore;
 
-    // 5. Update UI Elements
+    // 2. Redefine Visibility inside calc
+    const currentUid = (user[COL.id] || '').toString();
+    const profileUid = (targetUser[COL.id] || '').toString();
+    const viewingSelf = (currentUid === profileUid);
+    const uRole = getRole(user);
+    const status = targetUser[COL.stat] || 'Draft';
+    
+    // Logic: Show score if Approved, or if Manager/Admin is looking at someone else
+    const canSeeScore = (status === 'Approved') || (!viewingSelf && (isManager || ['Admin', 'Master'].includes(uRole)));
+
+    // 3. Update UI
     const scoreEl = document.getElementById('score');
     const ratingEl = document.getElementById('rating');
-    const sharedScoreEl = document.getElementById('shared-contrib-val'); // Make sure these IDs exist in your HTML
+    const sharedScoreEl = document.getElementById('shared-contrib-val');
     const indivScoreEl = document.getElementById('indiv-contrib-val');
 
-    if (showScoreToViewer) {
-        // DISPLAY ROUNDED SCORE
-        scoreEl.innerText = Math.round(total); 
-
-        // Update Contribution Badges if they exist
+    if (canSeeScore) {
+        if (scoreEl) scoreEl.innerText = Math.round(total); 
         if (sharedScoreEl) sharedScoreEl.innerText = sharedGoalScore.toFixed(2);
         if (indivScoreEl) indivScoreEl.innerText = individualGoalScore.toFixed(2);
 
-        // Determine Rating Label based on Precise Total
         let lbl = "-";
         if (total >= 5.5) lbl = "ASTRONAUT";
         else if (total >= 4.5) lbl = "FLYER";
@@ -3497,10 +3491,10 @@ h += `</div></div>`; // Close container
         else if (total >= 2.5) lbl = "WALKER";
         else if (total >= 1.5) lbl = "STAGNANT";
         else if (total > 0) lbl = "IDLE";
-        ratingEl.innerText = lbl;
+        if (ratingEl) ratingEl.innerText = lbl;
     } else {
-        scoreEl.innerHTML = '<i class="fa-solid fa-lock" style="font-size:1.5rem; opacity:0.3;"></i>';
-        ratingEl.innerText = "Pending HR";
+        if (scoreEl) scoreEl.innerHTML = '<i class="fa-solid fa-lock" style="font-size:1.5rem; opacity:0.3;"></i>';
+        if (ratingEl) ratingEl.innerText = "Pending HR";
     }
 }
         function autoSave() {
@@ -3987,4 +3981,5 @@ h += `</div></div>`; // Close container
     </style>
 </body>
 </html>
+
 
