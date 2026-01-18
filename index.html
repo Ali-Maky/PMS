@@ -3143,8 +3143,19 @@ function filterTeamGrid() {
 
         if (isSearchMode) canEdit = false;
 
-        let mName = data[COL.mgr] || '-'; if (mName.includes('(')) mName = mName.split('(')[0];
-        
+        let mName = data[COL.mgr] || '-'; 
+           let managerOnlyID = '';
+if (data[COL.mgr]) {
+    // This regex looks for text inside parentheses, e.g., (ZIQ00355)
+    const match = data[COL.mgr].match(/\(([^)]+)\)/);
+    if (match) {
+        managerOnlyID = match[1]; // Sets it to ZIQ00355
+    } else if (data[COL.mgr].includes('ZIQ') || data[COL.mgr].includes('AWO') || data[COL.mgr].includes('NG')) {
+        // Fallback: if there are no parentheses but the ID is just the raw string
+        managerOnlyID = data[COL.mgr];
+    }
+}
+     if (mName.includes('(')) mName = mName.split('(')[0].trim();   
        // Use the centralized helper to ensure logic is the same everywhere
 let comp = getCompany(data[COL.id]);
 
@@ -3217,16 +3228,15 @@ let comp = getCompany(data[COL.id]);
                     <label>Division</label>
                     <div class="info-value">${data[COL.div] || '-'}</div>
                 </div>
-                <div class="info-item">
-                    <label>Direct Manager</label>
-                    <div class="info-value">${mName}</div>
-                </div>
-                <div class="info-item">
-                    <label>Manager ID</label>
-                    <div class="info-value" style="font-family:monospace; background:#f3f4f6; padding:2px 6px; border-radius:4px;">
-                        ${data[COL.mgr] || '-'}
-                    </div>
-                </div>
+              <div class="info-item">
+        <label>Direct Manager</label>
+        <div class="info-value">${mName}</div>
+    </div><div class="info-item">
+        <label>Manager ID</label>
+        <div class="info-value" style="font-family:monospace; background:#f3f4f6; padding:2px 6px; border-radius:4px;">
+            ${managerOnlyID} 
+        </div>
+    </div>
                 <div class="info-item">
                     <label>Company</label>
                     <div class="info-value" style="color:var(--primary); font-weight:700;">${comp}</div>
@@ -4133,6 +4143,7 @@ async function showHistory(empId, fromAdmin = false) {
     </style>
 </body>
 </html>
+
 
 
 
