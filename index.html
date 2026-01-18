@@ -1579,7 +1579,7 @@
         let hasDraft = false;
         let saveTimer;
         let chart1, chartAdmin, chartOrg;
-        let COL = { id: 'id', name: 'name', lvl: 'level', job: 'job', mgr: 'manager_id', stat: 'status', goals: 'goals', div: 'division', dept: 'department', pass: 'password', role: 'access_role' };
+        let COL = { id: 'id', name: 'name', lvl: 'level', job: 'job', mgr: 'manager_id', stat: 'status', goals: 'goals', div: 'division', dept: 'department', pass: 'password', role: 'access_role', phone: 'phone_number', email: 'Email' };
         let adminCache = [];
         let allCompanyData = [];
         let globalReports = [];
@@ -1914,29 +1914,57 @@ function renderDirectoryTable(list) {
     `).join('');
 }
         // Modal Functions
-        function openUserModal(id = null) {
-            document.getElementById('modal-overlay').classList.add('open');
-            document.getElementById('edit-mode-id').value = id || "";
-            document.getElementById('modal-title').innerText = id ? "Edit Employee" : "Add Employee";
+        function openUserModal(empId = null) {
+    const modal = document.getElementById('user-modal'); // Ensure this ID matches your modal container
+    const idField = document.getElementById('um-id');
+    const nameField = document.getElementById('um-name');
+    const emailField = document.getElementById('um-email');
+    const phoneField = document.getElementById('um-phone');
+    const jobField = document.getElementById('um-job');
+    const divField = document.getElementById('um-div');
+    const mgrField = document.getElementById('um-mgr');
+    const roleField = document.getElementById('um-role');
+    const origIdField = document.getElementById('um-orig-id');
 
-            if (id) {
-                const u = allCompanyData.find(x => x[COL.id] == id);
-                if (u) {
-                    document.getElementById('u-id').value = u[COL.id];
-                    document.getElementById('u-id').readOnly = true; // Cannot change ID in edit
-                    document.getElementById('u-name').value = u[COL.name];
-                    document.getElementById('u-lvl').value = u[COL.lvl] || "";
-                    document.getElementById('u-job').value = u[COL.job] || "";
-                    document.getElementById('u-div').value = u[COL.div] || "";
-                    document.getElementById('u-dept').value = u[COL.dept] || "";
-                    document.getElementById('u-mgr').value = u[COL.mgr] || "";
-                    document.getElementById('u-pass').value = ""; // Don't show old password
-                }
-            } else {
-                document.querySelectorAll('#modal-overlay input').forEach(i => { if (i.type != 'hidden') i.value = ""; i.readOnly = false; });
-            }
+    // Reset all fields first
+    idField.value = '';
+    nameField.value = '';
+    emailField.value = '';
+    phoneField.value = '';
+    jobField.value = '';
+    divField.value = '';
+    mgrField.value = '';
+    roleField.value = 'User'; // Default role
+    origIdField.value = '';
+
+    if (!empId) {
+        // Mode: Add New Employee
+        document.getElementById('um-title').innerText = "Add New Employee";
+        idField.disabled = false;
+    } else {
+        // Mode: Edit Existing Employee
+        document.getElementById('um-title').innerText = "Edit Employee Details";
+        
+        // Find user data in the global cache
+        const u = allCompanyData.find(x => x[COL.id].toString() === empId.toString());
+        
+        if (u) {
+            origIdField.value = u[COL.id]; // Store the original ID for the update query
+            idField.value = u[COL.id];
+            idField.disabled = true; // Best practice: Don't allow ID changes during edit
+            
+            nameField.value = u[COL.name] || '';
+            emailField.value = u[COL.email] || '';
+            phoneField.value = u[COL.phone] || '';
+            jobField.value = u[COL.job] || '';
+            divField.value = u[COL.div] || '';
+            mgrField.value = u[COL.mgr] || '';
+            roleField.value = u[COL.role] || 'User';
         }
+    }
 
+    modal.style.display = 'flex';
+}
         function closeUserModal() {
             document.getElementById('modal-overlay').classList.remove('open');
         }
@@ -3142,15 +3170,46 @@ if (isSearchMode) canEdit = false;
     </div>
 </div>
 
-                    <div class="info-panel">
-                        <div class="info-item"><label>Employee Name</label><div class="info-value">${data[COL.name]}</div></div>
-                        <div class="info-item"><label>Employee ID</label><div class="info-value" style="font-family:monospace; background:#f3f4f6; padding:2px 6px; border-radius:4px;">${data[COL.id]}</div></div>
-                        <div class="info-item"><label>Job Title</label><div class="info-value">${data[COL.job] || '-'}</div></div>
-                        <div class="info-item"><label>Division</label><div class="info-value">${data[COL.div] || '-'}</div></div>
-                        <div class="info-item"><label>Direct Manager</label><div class="info-value">${mName}</div></div>
-                        <div class="info-item"><label>Company</label><div class="info-value" style="color:var(--primary); font-weight:700;">${comp}</div></div>
-                    </div>`;
+                   // Inside the info-panel block in loadEval
+// Inside the info-panel block in loadEval
+<div class="info-panel">
+    <div class="info-item">
+        <label>Employee Name</label>
+        <div class="info-value">${data[COL.name]}</div>
+    </div>
+    
+    <div class="info-item">
+        <label>Email Address</label>
+        <div class="info-value" style="color:var(--primary);">${data[COL.email] || '-'}</div>
+    </div>
 
+    <div class="info-item">
+        <label>Phone Number</label>
+        <div class="info-value">${data[COL.phone] || '-'}</div>
+    </div>
+
+    <div class="info-item">
+        <label>Job Title</label>
+        <div class="info-value">${data[COL.job] || '-'}</div>
+    </div>
+    
+    <div class="info-item">
+        <label>Direct Manager</label>
+        <div class="info-value">${mName}</div>
+    </div>
+
+    <div class="info-item">
+        <label>Manager ID</label>
+        <div class="info-value" style="font-family:monospace; background:#f3f4f6; padding:2px 6px; border-radius:4px;">
+            ${data[COL.mgr] || '-'}
+        </div>
+    </div>
+
+    <div class="info-item">
+        <label>Company</label>
+        <div class="info-value" style="color:var(--primary); font-weight:700;">${comp}</div>
+    </div>
+</div>
                 const managerBlocked = (isDirectSupervisor && (stat === 'Draft' || stat === 'Returned'));
 
                 if (managerBlocked && !['Admin', 'Master'].includes(uRole)) {
@@ -3633,46 +3692,64 @@ h += `</div></div>`; // Close container
             setTimeout(() => modal.style.display = 'none', 300);
         }
 
-        async function saveUser() {
-            const id = document.getElementById('um-id').value.trim();
-            const name = document.getElementById('um-name').value.trim();
-            const job = document.getElementById('um-job').value.trim();
-            const div = document.getElementById('um-div').value.trim();
-            const mgr = document.getElementById('um-mgr').value.trim();
-            const role = document.getElementById('um-role').value.trim();
-            const origId = document.getElementById('um-orig-id').value;
+     async function saveUser() {
+    // Select inputs using your original IDs (um-)
+    const id = document.getElementById('um-id').value.trim();
+    const name = document.getElementById('um-name').value.trim();
+    const email = document.getElementById('um-email').value.trim(); // New Field
+    const phone = document.getElementById('um-phone').value.trim(); // New Field
+    const job = document.getElementById('um-job').value.trim();
+    const div = document.getElementById('um-div').value.trim();
+    const mgr = document.getElementById('um-mgr').value.trim();
+    const role = document.getElementById('um-role').value.trim();
+    const origId = document.getElementById('um-orig-id').value;
 
-            if (!id || !name) { showToast("ID and Name are required", "error"); return; }
+    // Validation
+    if (!id || !name) { 
+        showToast("ID and Name are required", "error"); 
+        return; 
+    }
 
-            let u = {};
-            u[COL.id] = id; u[COL.name] = name; u[COL.job] = job; u[COL.div] = div; u[COL.mgr] = mgr; u[COL.role] = role;
-            u[COL.pass] = "123"; // Default password
-            u[COL.lvl] = "L4"; // Default level if not specified
+    // Build the user object using COL mapping
+    let u = {};
+    u[COL.id] = id; 
+    u[COL.name] = name;
+    u[COL.email] = email; // New Mapping
+    u[COL.phone] = phone; // New Mapping
+    u[COL.job] = job; 
+    u[COL.div] = div; 
+    u[COL.mgr] = mgr; 
+    u[COL.role] = role;
+    u[COL.pass] = "123"; // Default password as per your original code
+    u[COL.lvl] = "L4";    // Default level as per your original code
 
-            let error;
-            if (origId) {
-                // Update
-                const { error: err } = await db.from('active_list').update(u).eq(COL.id, origId);
-                error = err;
-            } else {
-                // Insert
-                const { error: err } = await db.from('active_list').insert([u]);
-                error = err;
-            }
+    let error;
+    if (origId) {
+        // Update logic using the original ID to match record in Supabase
+        const { error: err } = await db.from('active_list').update(u).eq(COL.id, origId);
+        error = err;
+    } else {
+        // Insert logic for brand new records
+        const { error: err } = await db.from('active_list').insert([u]);
+        error = err;
+    }
 
-            if (error) {
-                showToast("Error saving user: " + error.message, "error");
-            } else {
-                showToast("User saved successfully", "success");
-                closeUserModal();
-                allCompanyData = await fetchAllData(); // Refresh data
-                if (document.getElementById('dir-table')) {
-                    const q = document.querySelector('.search-box-container input') ? document.querySelector('.search-box-container input').value : "";
-                    searchDirectory(q);
-                }
-            }
+    if (error) {
+        showToast("Error saving user: " + error.message, "error");
+    } else {
+        showToast("User saved successfully", "success");
+        closeUserModal(); // Close modal using your original function name
+        
+        allCompanyData = await fetchAllData(); // Refresh the global cache
+        
+        // Refresh the Directory Table if it is currently visible
+        if (document.getElementById('dir-table')) {
+            const q = document.querySelector('.search-box-container input') ? 
+                      document.querySelector('.search-box-container input').value : "";
+            searchDirectory(q);
         }
-
+    }
+}
         function renderNav(r) {
             let h = '';
             // Helper for items
@@ -3811,46 +3888,44 @@ h += `</div></div>`; // Close container
             </div>
 
             <input type="hidden" id="um-orig-id">
+<div class="dash-grid" style="grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px;">
+    <div style="grid-column:1/-1;">
+        <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Full Name</label>
+        <input id="um-name" class="login-input" style="margin-top:4px;" placeholder="Full Name">
+    </div>
 
-            <div class="dash-grid" style="grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px;">
-                <div style="grid-column:1/-1;">
-                    <label
-                        style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Full
-                        Name</label>
-                    <input id="um-name" class="login-input" style="margin-top:4px;" placeholder="Full Name">
-                </div>
-                <div>
-                    <label
-                        style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Employee
-                        ID</label>
-                    <input id="um-id" class="login-input" style="margin-top:4px;" placeholder="ID (e.g. ZIQ...)">
-                </div>
-                <div>
-                    <label
-                        style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Job
-                        Title</label>
-                    <input id="um-job" class="login-input" style="margin-top:4px;" placeholder="Job Title">
-                </div>
-                <div>
-                    <label
-                        style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Division</label>
-                    <input id="um-div" class="login-input" style="margin-top:4px;" placeholder="Division">
-                </div>
-                <div>
-                    <label
-                        style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Direct
-                        Manager ID</label>
-                    <input id="um-mgr" class="login-input" style="margin-top:4px;" placeholder="Manager ID">
-                </div>
-                <div style="grid-column:1/-1;">
-                    <label
-                        style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">System
-                        Role</label>
-                    <input id="um-role" class="login-input" style="margin-top:4px;"
-                        placeholder="Role (e.g. admin) or leave blank">
-                </div>
-            </div>
+    <div style="grid-column:1/-1;">
+        <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Email Address</label>
+        <input id="um-email" class="login-input" style="margin-top:4px;" placeholder="employee@zain.com">
+    </div>
 
+    <div>
+        <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Phone Number</label>
+        <input id="um-phone" class="login-input" style="margin-top:4px;" placeholder="077XXXXXXXX">
+    </div>
+    <div>
+        <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Employee ID</label>
+        <input id="um-id" class="login-input" style="margin-top:4px;" placeholder="ID (e.g. ZIQ...)">
+    </div>
+
+    <div>
+        <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Job Title</label>
+        <input id="um-job" class="login-input" style="margin-top:4px;" placeholder="Job Title">
+    </div>
+    <div>
+        <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Division</label>
+        <input id="um-div" class="login-input" style="margin-top:4px;" placeholder="Division">
+    </div>
+
+    <div>
+        <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Direct Manager ID</label>
+        <input id="um-mgr" class="login-input" style="margin-top:4px;" placeholder="Manager ID">
+    </div>
+    <div>
+        <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">System Role</label>
+        <input id="um-role" class="login-input" style="margin-top:4px;" placeholder="Role (e.g. admin)">
+    </div>
+</div>
             <div style="display:flex; justify-content:flex-end; gap:12px;">
                 <button class="btn btn-outline" onclick="closeUserModal()">Cancel</button>
                 <button id="um-btn" class="btn btn-primary" onclick="saveUser()">Save Changes</button>
@@ -3981,5 +4056,6 @@ h += `</div></div>`; // Close container
     </style>
 </body>
 </html>
+
 
 
