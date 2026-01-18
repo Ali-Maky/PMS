@@ -3889,6 +3889,7 @@ h += `</div></div>`; // Close container
 
             <input type="hidden" id="um-orig-id">
 <div class="dash-grid" style="grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px;">
+    
     <div style="grid-column:1/-1;">
         <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Full Name</label>
         <input id="um-name" class="login-input" style="margin-top:4px;" placeholder="Full Name">
@@ -3903,35 +3904,19 @@ h += `</div></div>`; // Close container
         <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Phone Number</label>
         <input id="um-phone" class="login-input" style="margin-top:4px;" placeholder="077XXXXXXXX">
     </div>
+
     <div>
         <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Employee ID</label>
         <input id="um-id" class="login-input" style="margin-top:4px;" placeholder="ID (e.g. ZIQ...)">
     </div>
-
-    <div>
-        <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Job Title</label>
-        <input id="um-job" class="login-input" style="margin-top:4px;" placeholder="Job Title">
+    
     </div>
-    <div>
-        <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Division</label>
-        <input id="um-div" class="login-input" style="margin-top:4px;" placeholder="Division">
-    </div>
-
-    <div>
-        <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Direct Manager ID</label>
-        <input id="um-mgr" class="login-input" style="margin-top:4px;" placeholder="Manager ID">
-    </div>
-    <div>
-        <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">System Role</label>
-        <input id="um-role" class="login-input" style="margin-top:4px;" placeholder="Role (e.g. admin)">
-    </div>
-</div>
             <div style="display:flex; justify-content:flex-end; gap:12px;">
                 <button class="btn btn-outline" onclick="closeUserModal()">Cancel</button>
                 <button id="um-btn" class="btn btn-primary" onclick="saveUser()">Save Changes</button>
             </div>
         </div>
-
+    </div>
     <!-- CUSTOM CSS FOR MODAL ANIMATION -->
     <style>
         #user-modal.open {
@@ -4055,6 +4040,7 @@ h += `</div></div>`; // Close container
     </style>
 </body>
 </html>
+
 
 
 
