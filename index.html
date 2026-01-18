@@ -2778,25 +2778,25 @@ async function loadReports() {
         });
         const allMgrs = Array.from(mgrMap.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
 
-        filterHtml = `
-         <div style="display:flex; justify-content:flex-end; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
-            <select id="org-filter-comp" onchange="cascadeFilters()" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.8rem; background:#f9fafb; cursor:pointer; font-weight:700;">
-                <option value="ALL">All Companies</option>
-                <option value="Zain Iraq">Zain Iraq</option>
-                <option value="Horizon">Horizon</option>
-                <option value="Next Generation">Next Generation</option>
-            </select>
+       filterHtml = `
+ <div style="display:flex; justify-content:flex-end; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+    <select id="org-filter-comp" onchange="cascadeFilters()" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.8rem; background:#f9fafb; cursor:pointer; font-weight:700;">
+        <option value="ALL">All Companies</option>
+        <option value="Zain Iraq">Zain Iraq</option>
+        <option value="Horizon">Horizon</option>
+        <option value="Next Generation">Next Generation</option>
+    </select>
 
-            <select id="org-filter-div" onchange="updateOrgChart()" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.8rem; background:#f9fafb; cursor:pointer;">
-                <option value="ALL">All Divisions</option>
-                ${allDivs.map(d => `<option value="${d}">${d}</option>`).join('')}
-            </select>
+    <select id="org-filter-div" onchange="cascadeFilters()" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.8rem; background:#f9fafb; cursor:pointer;">
+        <option value="ALL">All Divisions</option>
+        ${allDivs.map(d => `<option value="${d}">${d}</option>`).join('')}
+    </select>
 
-            <select id="org-filter-mgr" onchange="updateOrgChart()" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.8rem; max-width:200px; background:#f9fafb; cursor:pointer;">
-                <option value="ALL">All Managers</option>
-                ${allMgrs.map(m => `<option value="${m.id}">${m.name}</option>`).join('')}
-            </select>
-         </div>`;
+    <select id="org-filter-mgr" onchange="updateOrgChart()" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.8rem; max-width:200px; background:#f9fafb; cursor:pointer;">
+        <option value="ALL">All Managers</option>
+        ${allMgrs.map(m => `<option value="${m.id}">${m.name}</option>`).join('')}
+    </select>
+ </div>`;
     }
     // --- NEW FILTER LOGIC END ---
 
@@ -4050,6 +4050,7 @@ function filterTeamGrid() {
     </style>
 </body>
 </html>
+
 
 
 
