@@ -2893,6 +2893,7 @@ let tableRows = scoredReports.map(r => `
 // --- NEW FUNCTION: Cascade Filters (Comp -> Div/Mgr) ---
 function cascadeFilters() {
     const compVal = document.getElementById('org-filter-comp').value;
+    const divVal = document.getElementById('org-filter-div').value;
     const divSelect = document.getElementById('org-filter-div');
     const mgrSelect = document.getElementById('org-filter-mgr');
 
@@ -2902,23 +2903,40 @@ function cascadeFilters() {
         subset = globalReports.filter(u => getCompany(u[COL.id]) === compVal);
     }
 
-    // 2. Get available Divisions in this subset
-    const availDivs = [...new Set(subset.map(u => (u[COL.div] || "").trim()).filter(Boolean))].sort();
-    
-    // 3. Get available Managers in this subset
+    // 2. Update the Divisions dropdown based on the Company selection
+    // (Only run this if the trigger was the Company dropdown)
+    if (event && event.target.id === 'org-filter-comp') {
+        const availDivs = [...new Set(subset.map(u => (u[COL.div] || "").trim()).filter(Boolean))].sort();
+        divSelect.innerHTML = `<option value="ALL">All Divisions</option>` + 
+                               availDivs.map(d => `<option value="${d}">${d}</option>`).join('');
+    }
+
+    // 3. Further filter the subset by Division to find relevant Managers
+    let mgrSubset = subset;
+    if (divVal !== 'ALL') {
+        mgrSubset = subset.filter(u => (u[COL.div] || "").trim() === divVal);
+    }
+
+    // 4. Extract unique Managers from this specific Division/Company subset
     const mgrMap = new Map();
-    subset.forEach(u => {
+    mgrSubset.forEach(u => {
         let rawM = (u[COL.mgr] || "").toString();
+        // Match manager ID within allCompanyData to get their Name
         let match = allCompanyData.find(x => rawM.includes(x[COL.id]));
-        if (match) { if (!mgrMap.has(match[COL.id])) mgrMap.set(match[COL.id], match[COL.name]); }
+        if (match) { 
+            if (!mgrMap.has(match[COL.id])) mgrMap.set(match[COL.id], match[COL.name]); 
+        }
     });
-    const availMgrs = Array.from(mgrMap.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
 
-    // 4. Update Dropdowns HTML
-    divSelect.innerHTML = `<option value="ALL">All Divisions</option>` + availDivs.map(d => `<option value="${d}">${d}</option>`).join('');
-    mgrSelect.innerHTML = `<option value="ALL">All Managers</option>` + availMgrs.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+    const availMgrs = Array.from(mgrMap.entries())
+        .map(([id, name]) => ({ id, name }))
+        .sort((a, b) => a.name.localeCompare(b.name));
 
-    // 5. Update Chart
+    // 5. Update Manager Dropdown HTML
+    mgrSelect.innerHTML = `<option value="ALL">All Managers</option>` + 
+                           availMgrs.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+
+    // 6. Refresh the Chart
     updateOrgChart();
 }
 
@@ -4024,6 +4042,7 @@ function filterTeamGrid() {
     </style>
 </body>
 </html>
+
 
 
 
