@@ -2615,31 +2615,18 @@ async function processBulkImport(inp) {
             filterAdminTable();
         }
 
-        function filterAdminTable() {
-            const f = document.getElementById('div-filter').value;
-            const tbody = document.getElementById('admin-tbody');
-            const visible = adminCache.filter(r => f === 'ALL' || (r[COL.div] || 'Other') === f);
+       function filterAdminTable() {
+    const f = document.getElementById('div-filter').value;
+    const tbody = document.getElementById('admin-tbody');
+    const visible = adminCache.filter(r => f === 'ALL' || (r[COL.div] || 'Other') === f);
 
-            if (visible.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px;">No pending approvals found.</td></tr>`;
-                return;
-            }
+    if (visible.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px;">No pending approvals found.</td></tr>`;
+        return;
+    }
 
-            tbody.innerHTML = visible.map(r => `
-            <tr>
-                <td style="font-weight:600;">${r[COL.name]}</td>
-                <td>${r[COL.div] || '-'}</td>
-                <td>${r[COL.job] || '-'}</td>
-                <td>${r[COL.mgr] || '-'}</td>
-                <td>
-                    <div style="display:flex; gap:6px;">
-                        <button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem;" onclick="loadEval('${r[COL.id]}')">View</button>
-                        <button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem; color:var(--danger); border-color:#fee2e2;" onclick="rejectToManager('${r[COL.id]}')">Reject</button>
-                        <button class="btn btn-primary" style="padding:6px 10px; font-size:0.75rem;" onclick="approveSingle('${r[COL.id]}')">Approve</button>
-                    </div>
-                </td>
-            </tr>
-            <tr>
+    tbody.innerHTML = visible.map(r => `
+    <tr>
         <td style="font-weight:600;">${r[COL.name]}</td>
         <td>${r[COL.div] || '-'}</td>
         <td>${r[COL.job] || '-'}</td>
@@ -2648,7 +2635,8 @@ async function processBulkImport(inp) {
             <div style="display:flex; gap:6px;">
                 <button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem;" onclick="loadEval('${r[COL.id]}')">View</button>
                 
-                <button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem; color:var(--primary); border-color:var(--primary-light);" onclick="showHistory('${r[COL.id]}', true)">
+                <button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem; color:var(--primary); border-color:var(--primary-light);" 
+                        onclick="showHistory('${r[COL.id]}', true)" title="View History">
                     <i class="fa-solid fa-clock-rotate-left"></i>
                 </button>
 
@@ -2656,10 +2644,8 @@ async function processBulkImport(inp) {
                 <button class="btn btn-primary" style="padding:6px 10px; font-size:0.75rem;" onclick="approveSingle('${r[COL.id]}')">Approve</button>
             </div>
         </td>
-    </tr>
-        `).join('');
-        }
-
+    </tr>`).join('');
+}
         async function loadAdminSearch() {
             if (allCompanyData.length === 0) allCompanyData = await fetchAllData();
             document.getElementById('admin-content').innerHTML = `
@@ -4148,6 +4134,7 @@ async function showHistory(empId, fromAdmin = false) {
     </style>
 </body>
 </html>
+
 
 
 
