@@ -2793,8 +2793,8 @@ function refreshGlobalAdminRating() {
             }).join('') || '<tr><td colspan="3" style="text-align:center;">No data</td></tr>';
         }
 
-       async function loadAdminApprovals() {
-    // 1. Fetch ALL records waiting for HR approval
+      async function loadAdminApprovals() {
+    // Fetch all records waiting for HR (Admin) approval
     const { data, error } = await db.from('active_list')
         .select('*')
         .eq(COL.stat, 'Submitted to HR');
@@ -2804,9 +2804,7 @@ function refreshGlobalAdminRating() {
         return; 
     }
 
-    // 2. Store in cache
     adminCache = data || [];
-
     const divs = [...new Set(adminCache.map(i => i[COL.div] || 'Other'))].sort();
     
     let h = `
@@ -2814,8 +2812,10 @@ function refreshGlobalAdminRating() {
         <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
                 <div style="display:flex; gap:16px; align-items:center;">
-                    <h3 style="margin:0; font-size:1.2rem; font-weight:700;">Pending Approvals <span style="background:var(--danger); color:white; padding:2px 8px; border-radius:99px; font-size:0.9rem;">${adminCache.length}</span></h3>
-                    <select id="div-filter" onchange="filterAdminTable()" style="padding:8px 12px; border-radius:8px; border:1px solid var(--border); font-family:inherit;">
+                    <h3 style="margin:0; font-size:1.2rem; font-weight:700;">
+                        Pending Approvals <span class="badge-count">${adminCache.length}</span>
+                    </h3>
+                    <select id="div-filter" onchange="filterAdminTable()" class="login-input" style="margin:0; width:200px;">
                         <option value="ALL">All Divisions</option>
                         ${divs.map(d => `<option value="${d}">${d}</option>`).join('')}
                     </select>
@@ -2826,7 +2826,15 @@ function refreshGlobalAdminRating() {
             </div>
             <div style="overflow-x:auto;">
                 <table class="report-table">
-                    <thead><tr><th>Name</th><th>Division</th><th>Job Title</th><th>Manager</th><th style="text-align:right">Action</th></tr></thead>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Division</th>
+                            <th>Job Title</th>
+                            <th>Manager</th>
+                            <th style="text-align:right">Action</th>
+                        </tr>
+                    </thead>
                     <tbody id="admin-tbody"></tbody>
                 </table>
             </div>
@@ -2841,11 +2849,10 @@ function refreshGlobalAdminRating() {
     const tbody = document.getElementById('admin-tbody');
     const myId = (user[COL.id] || '').toString(); 
 
-    // Filter results based on the dropdown (Division/Company)
     const visible = adminCache.filter(r => f === 'ALL' || (r[COL.div] || 'Other') === f);
 
     if (visible.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px;">No pending approvals found for this selection.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:40px; color:var(--text-muted);">No records found for this selection.</td></tr>`;
         return;
     }
 
@@ -2861,15 +2868,15 @@ function refreshGlobalAdminRating() {
             <td>${r[COL.job] || '-'}</td>
             <td>${r[COL.mgr] || '-'}</td>
             <td>
-                <div style="display:flex; gap:6px; justify-content:flex-end; align-items:center;">
-                    <button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem;" onclick="loadEval('${r[COL.id]}')">View</button>
+                <div style="display:flex; gap:8px; justify-content:flex-end; align-items:center;">
+                    <button class="btn btn-outline" style="padding:6px 12px; font-size:0.75rem;" onclick="loadEval('${r[COL.id]}')">View</button>
                     
-                    <button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem; color:var(--danger); border-color:#fee2e2;" 
+                    <button class="btn btn-outline" style="padding:6px 12px; font-size:0.75rem; color:var(--danger); border-color:#fee2e2;" 
                             onclick="rejectToManager('${r[COL.id]}')">Reject</button>
 
                     ${isMe ? 
-                        `<span style="font-size:0.75rem; color:var(--text-muted); font-weight:700; padding:0 10px; font-style:italic;">Peer Approval Required</span>` : 
-                        `<button class="btn btn-primary" style="padding:6px 10px; font-size:0.75rem;" onclick="approveSingle('${r[COL.id]}')">Approve</button>`
+                        `<span style="font-size:0.7rem; color:var(--text-muted); font-weight:700; padding:0 10px; font-style:italic;">Peer Approval Required</span>` : 
+                        `<button class="btn btn-primary" style="padding:6px 12px; font-size:0.75rem;" onclick="approveSingle('${r[COL.id]}')">Approve</button>`
                     }
                 </div>
             </td>
@@ -2931,25 +2938,24 @@ function refreshGlobalAdminRating() {
     const f = document.getElementById('div-filter').value;
     const myId = (user[COL.id] || '').toString();
 
-    // 1. Filter cache to match exactly what the Admin sees on screen
+    // 1. Get visible records based on current filter
     const visibleRecords = adminCache.filter(r => f === 'ALL' || (r[COL.div] || 'Other') === f);
 
-    // 2. Exclude the Admin's own ID from the operation for security
+    // 2. Filter out the logged-in admin's own ID
     const idsToApprove = visibleRecords
         .filter(r => r[COL.id].toString() !== myId)
         .map(r => r[COL.id]);
 
     if (idsToApprove.length === 0) {
-        showToast("No eligible records found in this view.", "info");
+        showToast("No eligible records available to approve in this view.", "info");
         return;
     }
 
-    const msg = f === 'ALL' ? "ALL pending scorecards" : `all scorecards in the ${f} division`;
+    const scope = f === 'ALL' ? "ALL pending" : `the ${f} division`;
 
-    showConfirm("Bulk Approval", `Approve ${idsToApprove.length} records for ${msg}?`, "Confirm Bulk Approve", "primary", async () => {
+    showConfirm("Bulk Approve", `Approve ${idsToApprove.length} scorecards for ${scope}?`, "Approve Visible", "primary", async () => {
         showSaving();
         
-        // Update all visible records to 'Approved' in one database call
         const { error } = await db.from('active_list')
             .update({ [COL.stat]: 'Approved' })
             .in(COL.id, idsToApprove);
@@ -2958,8 +2964,7 @@ function refreshGlobalAdminRating() {
             showToast("Bulk error: " + error.message, 'error');
         } else {
             showToast(`Successfully approved ${idsToApprove.length} records.`, 'success');
-            
-            // Refresh the admin list to clear out approved items
+            // Remove approved items from local cache and refresh view
             adminCache = adminCache.filter(r => !idsToApprove.includes(r[COL.id]));
             filterAdminTable();
         }
@@ -4378,6 +4383,7 @@ async function submitFinal() {
     </style>
 </body>
 </html>
+
 
 
 
