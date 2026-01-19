@@ -2836,12 +2836,12 @@ function refreshGlobalAdminRating() {
     document.getElementById('admin-content').innerHTML = h;
     filterAdminTable();
 }
-      function filterAdminTable() {
+     function filterAdminTable() {
     const f = document.getElementById('div-filter').value;
     const tbody = document.getElementById('admin-tbody');
     const myId = (user[COL.id] || '').toString(); 
 
-    // Filter the cache based on the dropdown selection
+    // Filter results based on the dropdown (Division/Company)
     const visible = adminCache.filter(r => f === 'ALL' || (r[COL.div] || 'Other') === f);
 
     if (visible.length === 0) {
@@ -2854,7 +2854,9 @@ function refreshGlobalAdminRating() {
         
         return `
         <tr>
-            <td style="font-weight:600;">${r[COL.name]} ${isMe ? '<span class="draft-badge">ME</span>' : ''}</td>
+            <td style="font-weight:600;">
+                ${r[COL.name]} ${isMe ? '<span class="draft-badge">ME</span>' : ''}
+            </td>
             <td>${r[COL.div] || '-'}</td>
             <td>${r[COL.job] || '-'}</td>
             <td>${r[COL.mgr] || '-'}</td>
@@ -2866,7 +2868,7 @@ function refreshGlobalAdminRating() {
                             onclick="rejectToManager('${r[COL.id]}')">Reject</button>
 
                     ${isMe ? 
-                        `<span style="font-size:0.7rem; color:var(--text-muted); font-weight:700; padding:0 10px; font-style:italic;">Peer Approval Required</span>` : 
+                        `<span style="font-size:0.75rem; color:var(--text-muted); font-weight:700; padding:0 10px; font-style:italic;">Peer Approval Required</span>` : 
                         `<button class="btn btn-primary" style="padding:6px 10px; font-size:0.75rem;" onclick="approveSingle('${r[COL.id]}')">Approve</button>`
                     }
                 </div>
@@ -2905,14 +2907,10 @@ function refreshGlobalAdminRating() {
             document.getElementById('search-results').innerHTML = results.map(r => `<div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid var(--border);"><div><div style="font-weight:700;">${r[COL.name]}</div><div style="font-size:0.8rem; color:var(--text-muted);">${r[COL.id]} | ${r[COL.job] || 'Staff'}</div></div><button class="btn btn-outline" style="font-size:0.8rem; padding:6px 12px;" onclick="loadEval('${r[COL.id]}', true)">Open Scorecard</button></div>`).join('');
         }
 
-        async function approveSingle(id) {
-    showConfirm("Confirm Approval", "Confirming this will finalize the scorecard and move it to history. Proceed?", "Confirm Approve", "primary", async () => {
+       async function approveSingle(id) {
+    showConfirm("Individual Approval", "Finalize this scorecard and move to history?", "Approve", "primary", async () => {
         showSaving();
         
-        // 1. Get the current user data from allCompanyData to calculate final score for history
-        const empData = allCompanyData.find(x => x[COL.id].toString() === id.toString());
-        
-        // 2. Perform the update to 'Approved'
         const { error } = await db.from('active_list')
             .update({ [COL.stat]: 'Approved' })
             .eq(COL.id, id);
@@ -2920,14 +2918,11 @@ function refreshGlobalAdminRating() {
         if (error) {
             showToast("Error: " + error.message, 'error');
         } else {
-            showToast("Scorecard Approved and Locked", 'success');
+            showToast("Scorecard finalized.", 'success');
             
-            // 3. Update the local list and re-render
+            // Remove the approved individual from the local list and re-render
             adminCache = adminCache.filter(x => x[COL.id].toString() !== id.toString());
             filterAdminTable();
-            
-            // 4. (Optional) Refresh allCompanyData in background
-            allCompanyData = await fetchAllData();
         }
         showSaved();
     });
@@ -2936,24 +2931,25 @@ function refreshGlobalAdminRating() {
     const f = document.getElementById('div-filter').value;
     const myId = (user[COL.id] || '').toString();
 
-    // 1. Identify which records are currently visible based on the UI filter
+    // 1. Filter cache to match exactly what the Admin sees on screen
     const visibleRecords = adminCache.filter(r => f === 'ALL' || (r[COL.div] || 'Other') === f);
 
-    // 2. Filter out YOUR record from the bulk action for security
+    // 2. Exclude the Admin's own ID from the operation for security
     const idsToApprove = visibleRecords
         .filter(r => r[COL.id].toString() !== myId)
         .map(r => r[COL.id]);
 
     if (idsToApprove.length === 0) {
-        showToast("No eligible records to approve in this view.", "info");
+        showToast("No eligible records found in this view.", "info");
         return;
     }
 
-    const scopeText = f === 'ALL' ? "ALL divisions" : `the ${f} division`;
+    const msg = f === 'ALL' ? "ALL pending scorecards" : `all scorecards in the ${f} division`;
 
-    showConfirm("Bulk Approve", `Approve ${idsToApprove.length} scorecards for ${scopeText}?`, "Approve Visible", "primary", async () => {
+    showConfirm("Bulk Approval", `Approve ${idsToApprove.length} records for ${msg}?`, "Confirm Bulk Approve", "primary", async () => {
         showSaving();
         
+        // Update all visible records to 'Approved' in one database call
         const { error } = await db.from('active_list')
             .update({ [COL.stat]: 'Approved' })
             .in(COL.id, idsToApprove);
@@ -2961,10 +2957,11 @@ function refreshGlobalAdminRating() {
         if (error) {
             showToast("Bulk error: " + error.message, 'error');
         } else {
-            showToast(`Successfully approved ${idsToApprove.length} scorecards.`, 'success');
-            // Refresh data and UI
-            allCompanyData = await fetchAllData(); 
-            loadAdminApprovals(); 
+            showToast(`Successfully approved ${idsToApprove.length} records.`, 'success');
+            
+            // Refresh the admin list to clear out approved items
+            adminCache = adminCache.filter(r => !idsToApprove.includes(r[COL.id]));
+            filterAdminTable();
         }
         showSaved();
     });
@@ -4381,6 +4378,7 @@ async function submitFinal() {
     </style>
 </body>
 </html>
+
 
 
 
