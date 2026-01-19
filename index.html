@@ -2793,12 +2793,23 @@ function refreshGlobalAdminRating() {
             }).join('') || '<tr><td colspan="3" style="text-align:center;">No data</td></tr>';
         }
 
-        async function loadAdminApprovals() {
-            const { data, error } = await db.from('active_list').select('*').eq(COL.stat, 'Submitted to HR');
-            if (error) { alert("Error fetching approvals"); return; }
-            adminCache = data.filter(d => d[COL.id] !== user[COL.id]);
-            const divs = [...new Set(adminCache.map(i => i[COL.div] || 'Other'))].sort();
-            let h = `
+       async function loadAdminApprovals() {
+    // 1. Fetch ALL records waiting for HR approval
+    const { data, error } = await db.from('active_list')
+        .select('*')
+        .eq(COL.stat, 'Submitted to HR');
+
+    if (error) { 
+        showToast("Error fetching approvals: " + error.message, 'error'); 
+        return; 
+    }
+
+    // 2. Store in cache
+    adminCache = data || [];
+
+    const divs = [...new Set(adminCache.map(i => i[COL.div] || 'Other'))].sort();
+    
+    let h = `
     <div class="animate-in">
         <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
@@ -2810,7 +2821,7 @@ function refreshGlobalAdminRating() {
                     </select>
                 </div>
                 <button class="btn btn-primary" onclick="approveBulk()">
-                    <i class="fa-solid fa-check-double"></i> &nbsp; Approve All
+                    <i class="fa-solid fa-check-double"></i> &nbsp; Approve All Visible
                 </button>
             </div>
             <div style="overflow-x:auto;">
@@ -2821,13 +2832,15 @@ function refreshGlobalAdminRating() {
             </div>
         </div>
     </div>`;
-            document.getElementById('admin-content').innerHTML = h;
-            filterAdminTable();
-        }
-
+    
+    document.getElementById('admin-content').innerHTML = h;
+    filterAdminTable();
+}
        function filterAdminTable() {
     const f = document.getElementById('div-filter').value;
     const tbody = document.getElementById('admin-tbody');
+    const myId = (user[COL.id] || '').toString(); // Current logged-in user
+
     const visible = adminCache.filter(r => f === 'ALL' || (r[COL.div] || 'Other') === f);
 
     if (visible.length === 0) {
@@ -2835,26 +2848,28 @@ function refreshGlobalAdminRating() {
         return;
     }
 
-    tbody.innerHTML = visible.map(r => `
-    <tr>
-        <td style="font-weight:600;">${r[COL.name]}</td>
-        <td>${r[COL.div] || '-'}</td>
-        <td>${r[COL.job] || '-'}</td>
-        <td>${r[COL.mgr] || '-'}</td>
-        <td>
-            <div style="display:flex; gap:6px;">
-                <button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem;" onclick="loadEval('${r[COL.id]}')">View</button>
-                
-                <button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem; color:var(--primary); border-color:var(--primary-light);" 
-                        onclick="showHistory('${r[COL.id]}', true)" title="View History">
-                    <i class="fa-solid fa-clock-rotate-left"></i>
-                </button>
-
-                <button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem; color:var(--danger); border-color:#fee2e2;" onclick="rejectToManager('${r[COL.id]}')">Reject</button>
-                <button class="btn btn-primary" style="padding:6px 10px; font-size:0.75rem;" onclick="approveSingle('${r[COL.id]}')">Approve</button>
-            </div>
-        </td>
-    </tr>`).join('');
+    tbody.innerHTML = visible.map(r => {
+        const isMe = (r[COL.id].toString() === myId);
+        
+        return `
+        <tr>
+            <td style="font-weight:600;">${r[COL.name]} ${isMe ? '<span class="draft-badge">ME</span>' : ''}</td>
+            <td>${r[COL.div] || '-'}</td>
+            <td>${r[COL.job] || '-'}</td>
+            <td>${r[COL.mgr] || '-'}</td>
+            <td>
+                <div style="display:flex; gap:6px; justify-content:flex-end;">
+                    <button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem;" onclick="loadEval('${r[COL.id]}')">View</button>
+                    
+                    ${isMe ? 
+                        `<span style="font-size:0.7rem; color:var(--text-muted); padding:6px; font-style:italic;">Peer Approval Required</span>` : 
+                        `<button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem; color:var(--danger); border-color:#fee2e2;" onclick="rejectToManager('${r[COL.id]}')">Reject</button>
+                         <button class="btn btn-primary" style="padding:6px 10px; font-size:0.75rem;" onclick="approveSingle('${r[COL.id]}')">Approve</button>`
+                    }
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
 }
         async function loadAdminSearch() {
             if (allCompanyData.length === 0) allCompanyData = await fetchAllData();
@@ -2888,7 +2903,30 @@ function refreshGlobalAdminRating() {
         }
 
         async function approveSingle(id) { if (confirm("Approve?")) { await db.from('active_list').update({ [COL.stat]: 'Approved' }).eq(COL.id, id); adminCache = adminCache.filter(x => x[COL.id] != id); filterAdminTable(); } }
-        async function approveBulk() { if (confirm("Approve visible?")) { const ids = adminCache.map(r => r[COL.id]); await db.from('active_list').update({ [COL.stat]: 'Approved' }).in(COL.id, ids); loadAdminApprovals(); } }
+      async function approveBulk() {
+    const myId = (user[COL.id] || '').toString();
+    // Filter out the current user's ID from the bulk list
+    const idsToApprove = adminCache
+        .filter(r => r[COL.id].toString() !== myId)
+        .map(r => r[COL.id]);
+
+    if (idsToApprove.length === 0) {
+        showToast("No other records available to approve.", "info");
+        return;
+    }
+
+    showConfirm("Bulk Approve", `Approve ${idsToApprove.length} scorecards?`, "Approve All", "primary", async () => {
+        const { error } = await db.from('active_list')
+            .update({ [COL.stat]: 'Approved' })
+            .in(COL.id, idsToApprove);
+        
+        if (error) showToast(error.message, 'error');
+        else {
+            showToast(`Approved ${idsToApprove.length} records.`, 'success');
+            loadAdminApprovals();
+        }
+    });
+}
 
         // --- RECURSIVE ORG FETCH ---
         function getDownstream(rootId, allData) {
@@ -4321,6 +4359,7 @@ async function submitFinal() {
     </style>
 </body>
 </html>
+
 
 
 
