@@ -2905,7 +2905,7 @@ function refreshGlobalAdminRating() {
             document.getElementById('search-results').innerHTML = results.map(r => `<div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid var(--border);"><div><div style="font-weight:700;">${r[COL.name]}</div><div style="font-size:0.8rem; color:var(--text-muted);">${r[COL.id]} | ${r[COL.job] || 'Staff'}</div></div><button class="btn btn-outline" style="font-size:0.8rem; padding:6px 12px;" onclick="loadEval('${r[COL.id]}', true)">Open Scorecard</button></div>`).join('');
         }
 
-        async function async function approveSingle(id) {
+        async function approveSingle(id) {
     showConfirm("Confirm Approval", "Confirming this will finalize the scorecard and move it to history. Proceed?", "Confirm Approve", "primary", async () => {
         showSaving();
         
@@ -4381,6 +4381,7 @@ async function submitFinal() {
     </style>
 </body>
 </html>
+
 
 
 
