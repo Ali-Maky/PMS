@@ -3295,22 +3295,26 @@ async function loadEval(tid, isSearchMode = false) {
         const { data, error } = await db.from('active_list').select('*').eq(COL.id, tid).single();
 
         if (error || !data) {
-            alert("Could not load employee data.");
+            console.error("Load Error:", error);
+            alert("Could not load employee data. Please refresh and try again.");
             return;
         }
 
         targetUser = data;
         const uRole = getRole(user);
+
         const myId = (user[COL.id] || '').toString();
         const targetId = (targetUser[COL.id] || '').toString();
         const viewingSelf = (myId === targetId);
 
-        // Manager Detection
+        // Manager Detection Logic
         const mgrStr = (data[COL.mgr] || "").toString().toLowerCase();
         const myName = (user[COL.name] || "").toString().toLowerCase();
+
         isDirectSupervisor = (mgrStr.includes(myId.toLowerCase()) || (myName.length > 3 && mgrStr.includes(myName)));
         isManager = isDirectSupervisor || (uRole === 'Admin' && !viewingSelf) || (uRole === 'Master' && !viewingSelf);
 
+        // Process weighting configuration
         const w = getW(data[COL.lvl], data[COL.job]);
         let userGoals = targetUser[COL.goals];
         if (typeof userGoals === 'string') { try { userGoals = JSON.parse(userGoals); } catch (e) { userGoals = []; } }
@@ -3320,21 +3324,40 @@ async function loadEval(tid, isSearchMode = false) {
         targetUser[COL.goals] = userGoals;
 
         const stat = data[COL.stat] || 'Draft';
+
+        // Permissions logic
         let canEdit = false;
-        if (viewingSelf) canEdit = (stat === 'Draft' || stat === 'Returned');
-        else if (isDirectSupervisor) canEdit = (stat === 'Submitted to Manager');
+        if (viewingSelf) {
+            canEdit = (stat === 'Draft' || stat === 'Returned');
+        } else if (isDirectSupervisor) {
+            canEdit = (stat === 'Submitted to Manager');
+        }
         if ((uRole === 'Admin' || uRole === 'Master') && !viewingSelf) {
             canEdit = !(isDirectSupervisor && stat === 'Submitted to HR');
         }
         if (isSearchMode) canEdit = false;
 
+        // MANAGER DATA EXTRACTION
+        let mName = data[COL.mgr] || '-';
+        let managerOnlyID = '';
+        if (data[COL.mgr]) {
+            const match = data[COL.mgr].match(/\(([^)]+)\)/);
+            if (match) {
+                managerOnlyID = match[1];
+            } else if (data[COL.mgr].includes('ZIQ') || data[COL.mgr].includes('AWO') || data[COL.mgr].includes('NG')) {
+                managerOnlyID = data[COL.mgr];
+            }
+        }
+        if (mName.includes('(')) mName = mName.split('(')[0].trim();
+        
         let comp = getCompany(data[COL.id]);
 
+        // START HTML CONSTRUCTION
         let h = `
         <div class="animate-in">
             <div class="header-bar">
                 <div>
-                    <h2 class="page-title">${isManager ? 'Review Portal' : 'My Scorecard'}</h2>
+                    <h2 class="page-title">${isManager ? 'Evaluation Portal' : 'My Scorecard'}</h2>
                     <p class="page-sub">
                         <span style="font-weight:700; color:var(--text-main);">${data[COL.name].split('(')[0]}</span>
                         <span style="margin:0 8px; color:var(--text-light);">•</span>
@@ -3342,29 +3365,76 @@ async function loadEval(tid, isSearchMode = false) {
                     </p>
                 </div>
                 <div style="display:flex; gap:10px;">
-                    <button onclick="showHistory('${data[COL.id]}')" class="btn btn-outline"><i class="fa-solid fa-clock-rotate-left"></i> &nbsp; History</button>
-                    ${isManager ? `<button onclick="${isDirectSupervisor ? 'loadTeam()' : "loadHRAdmin(); switchAdminTab('search');"}" class="btn btn-outline">Back</button>` : ''}
+                    <button onclick="showHistory('${data[COL.id]}')" class="btn btn-outline">
+                        <i class="fa-solid fa-clock-rotate-left"></i> &nbsp; View History
+                    </button>
+                    ${isManager ? `<button onclick="${isDirectSupervisor ? 'loadTeam()' : "loadHRAdmin(); switchAdminTab('search');"}" class="btn btn-outline"><i class="fa-solid fa-arrow-left"></i> &nbsp; Back</button>` : ''}
                 </div>
             </div>
             
             <div class="metrics-row">
-                <div class="metric-card highlight"><div class="metric-val" id="score">--</div><div class="metric-lbl">Final Score</div></div>
-                <div class="metric-card"><div class="metric-val" id="rating">--</div><div class="metric-lbl">Rating</div></div>
-                <div class="metric-card"><div class="metric-val">${w.s}%</div><div class="metric-lbl">Shared <span class="metric-sub-val" id="shared-contrib-val">0.00</span></div></div>
-                <div class="metric-card"><div class="metric-val">${w.i}%</div><div class="metric-lbl">Individual <span class="metric-sub-val" id="indiv-contrib-val">0.00</span></div></div>
+                <div class="metric-card highlight">
+                    <div class="metric-val" id="score">--</div>
+                    <div class="metric-lbl">Final Score</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-val" id="rating">--</div>
+                    <div class="metric-lbl">Rating</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-val">${w.s}%</div>
+                    <div class="metric-lbl">
+                        Shared Goals
+                        <span class="metric-sub-val" id="shared-contrib-val">0.00</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-val">${w.i}%</div>
+                    <div class="metric-lbl">
+                        Individual Goals
+                        <span class="metric-sub-val" id="indiv-contrib-val">0.00</span>
+                    </div>
+                </div>
             </div>
 
             <div class="info-panel">
-                <div class="info-item"><label>Name</label><div class="info-value">${data[COL.name]}</div></div>
-                <div class="info-item"><label>Job Title</label><div class="info-value">${data[COL.job] || '-'}</div></div>
-                <div class="info-item"><label>Division</label><div class="info-value">${data[COL.div] || '-'}</div></div>
-                <div class="info-item"><label>Company</label><div class="info-value" style="color:var(--primary); font-weight:700;">${comp}</div></div>
+                <div class="info-item">
+                    <label>Employee Name</label>
+                    <div class="info-value">${data[COL.name]}</div>
+                </div>
+                <div class="info-item">
+                    <label>Job Title</label>
+                    <div class="info-value">${data[COL.job] || '-'}</div>
+                </div>
+                <div class="info-item">
+                    <label>Division</label>
+                    <div class="info-value">${data[COL.div] || '-'}</div>
+                </div>
+                <div class="info-item">
+                    <label>Direct Manager</label>
+                    <div class="info-value">${mName}</div>
+                </div>
+                <div class="info-item">
+                    <label>Manager ID</label>
+                    <div class="info-value" style="font-family:monospace; background:#f3f4f6; padding:2px 6px; border-radius:4px; display:inline-block;">
+                        ${managerOnlyID || '-'}
+                    </div>
+                </div>
+                <div class="info-item">
+                    <label>Company</label>
+                    <div class="info-value" style="color:var(--primary); font-weight:700;">${comp}</div>
+                </div>
             </div>`;
 
         const managerBlocked = (isDirectSupervisor && (stat === 'Draft' || stat === 'Returned'));
 
         if (managerBlocked && !['Admin', 'Master'].includes(uRole)) {
-            h += `<div class="card" style="text-align:center; padding:80px 40px;"><h3 style="color:var(--text-muted);">Waiting for employee submission...</h3></div>`;
+            h += `
+                <div class="card" style="text-align:center; padding:80px 40px;">
+                    <div style="font-size:4rem; color:var(--primary-light); margin-bottom:24px; animation:pulse 2s infinite;"><i class="fa-solid fa-hourglass-half"></i></div>
+                    <h3 style="color:var(--text-main); font-size:1.5rem; margin-bottom:12px;">Waiting for Submission</h3>
+                    <p style="color:var(--text-muted); font-size:1.1rem; max-width:500px; margin:0 auto;">The employee has not submitted their scorecard yet.</p>
+                </div>`;
         } else {
             // SHARED GOALS (TARGETED & WEIGHTED)
             if (w.s > 0) {
@@ -3377,7 +3447,9 @@ async function loadEval(tid, isSearchMode = false) {
 
                 h += `
                 <div style="margin-bottom:40px;">
-                    <h3 style="margin-bottom:20px; font-weight:800;"><span style="background:var(--primary-light); color:var(--primary); padding:4px 10px; border-radius:6px; font-size:0.9rem;">${w.s}%</span> Shared Goals</h3>
+                    <h3 style="margin-bottom:20px; font-weight:800; display:flex; align-items:center; gap:12px;">
+                        <span style="background:var(--primary-light); color:var(--primary); padding:6px 12px; border-radius:8px; font-size:1rem;">${w.s}%</span> Shared Goals
+                    </h3>
                     <div class="shared-grid">
                         ${relevantShared.map(g => `
                             <div class="shared-card">
@@ -3386,47 +3458,70 @@ async function loadEval(tid, isSearchMode = false) {
                                     <span class="pro-unit-badge" style="background:var(--primary-light); font-size:0.65rem;">Weight: ${(g.myWeight*100).toFixed(1)}%</span>
                                 </div>
                                 <div class="segment-bar">
-                                    ${[1,2,3,4,5,6].map(n => `<div class="segment ${n===4?'is-target':''} ${n===g.rating?'active':''}"><div class="seg-num">${n}</div><div class="seg-val">${g.targets[n-1]||'-'}</div></div>`).join('')}
+                                    ${[1, 2, 3, 4, 5, 6].map(n => {
+                                        const isAchieved = (n === g.rating);
+                                        return `<div class="segment ${n === 4 ? 'is-target' : ''} ${isAchieved ? 'active' : ''}">
+                                                    ${n === 4 ? '<div class="target-badge">TARGET</div>' : ''}
+                                                    <div class="seg-num">${n}</div>
+                                                    <div class="seg-val">${g.targets[n - 1] || '-'}</div>
+                                                </div>`;
+                                    }).join('')}
                                 </div>
                             </div>`).join('')}
+                        ${relevantShared.length === 0 ? '<div style="color:var(--text-muted); font-style:italic; padding:20px;">No shared goals assigned to this division.</div>' : ''}
                     </div>
                 </div>`;
             }
 
-            // INDIVIDUAL GOALS
+            // INDIVIDUAL GOALS SECTION
             if (w.i > 0) {
                 h += `
-                <div>
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                        <h3 style="font-weight:800;"><span style="background:var(--secondary); color:white; padding:4px 10px; border-radius:6px; font-size:0.9rem;">${w.i}%</span> Individual Goals</h3>
-                        ${canEdit ? `<div><button class="btn btn-outline" onclick="triggerImport()">Import Excel</button> <button class="btn btn-primary" onclick="openGoalModal()">+ Add Goal</button></div>` : ''}
+                <div class="animate-in" style="animation-delay: 0.2s;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+                        <h3 style="margin:0; color:var(--text-main); font-weight:800; font-size:1.4rem; display:flex; align-items:center; gap:12px;">
+                            <span style="background:var(--secondary); color:white; padding:6px 12px; border-radius:8px; font-size:1rem;">${w.i}%</span> Individual Goals
+                        </h3>
+                        ${canEdit ? `<div>
+                            <button class="btn btn-outline" style="margin-right:12px;" onclick="triggerImport()"><i class="fa-solid fa-file-excel"></i> &nbsp; Import Excel</button>
+                            <button class="btn btn-primary" onclick="openGoalModal()"><i class="fa-solid fa-plus"></i> &nbsp; Add Goal</button>
+                        </div>` : ''}
                     </div>
                     <div id="goal-list"></div>
                 </div>`;
             }
         }
 
-        h += `<div style="margin-top:40px; padding-top:20px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:12px;">`;
+        // FOOTER ACTION BUTTONS
+        h += `<div style="margin-top:48px; padding-top:32px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:16px;">`;
+
         if (canEdit) {
-            h += `<button class="btn btn-outline" onclick="saveDraft()">Save Draft</button>`;
+            h += `<button class="btn btn-outline" onclick="saveDraft()"><i class="fa-regular fa-floppy-disk"></i> &nbsp; Save Draft</button>`;
             let btnText = viewingSelf ? "Submit to Manager" : "Approve & Submit to HR";
-            h += `<button id="btn-submit-final" class="btn btn-primary" onclick="submitFinal()">${btnText}</button>`;
+            h += `<button id="btn-submit-final" class="btn btn-primary" style="padding:12px 32px; font-size:1rem;" onclick="submitFinal()"><i class="fa-solid fa-paper-plane"></i> &nbsp; ${btnText}</button>`;
         }
+
         if (isDirectSupervisor && stat === 'Submitted to Manager') {
-            h += `<button class="btn btn-outline" style="color:var(--danger); border-color:#fee2e2;" onclick="rejectCard()">Reject & Return</button>`;
+            h += `<button class="btn btn-outline" style="color:var(--danger); border-color:#fee2e2; background:#fff1f2;" onclick="rejectCard()"><i class="fa-solid fa-ban"></i> &nbsp; Reject / Request Changes</button>`;
         }
+
         if ((uRole === 'Admin' || uRole === 'Master') && stat === 'Submitted to HR' && !isDirectSupervisor) {
-            h += `<button class="btn btn-outline" style="color:var(--danger);" onclick="rejectToManager('${targetUser[COL.id]}')">Reject to Manager</button>`;
-            h += `<button class="btn btn-primary" style="background:var(--success);" onclick="submitFinal()">Final Approve (HR)</button>`;
+            h += `<button class="btn btn-outline" style="color:var(--danger); border-color:#fee2e2; background:#fff1f2;" onclick="rejectToManager('${targetUser[COL.id]}')"><i class="fa-solid fa-rotate-left"></i> &nbsp; Reject to Manager</button>`;
+            h += `<button class="btn btn-primary" style="background:var(--success); border:none;" onclick="submitFinal()"><i class="fa-solid fa-check"></i> &nbsp; Final Approve (HR)</button>`;
         }
+
         h += `</div></div>`;
 
         render(h);
         if (w.i > 0 && !managerBlocked) renderGoals(canEdit);
+        
+        // Execute math calculation for headers
         calc();
-    } catch (err) { console.error(err); }
-}
 
+    } catch (err) {
+        console.error(err);
+        alert("Unexpected error: " + err.message);
+    }
+}
         async function rejectToManager(id) {
             showConfirm("Reject to Manager", "Return to 'Submitted to Manager'? The Manager will be able to edit scores.", "Reject", "danger", async () => {
                 const { error } = await db.from('active_list').update({ [COL.stat]: 'Submitted to Manager' }).eq(COL.id, id);
@@ -4219,4 +4314,5 @@ function calc() {
     </style>
 </body>
 </html>
+
 
