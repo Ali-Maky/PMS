@@ -2841,10 +2841,11 @@ function refreshGlobalAdminRating() {
     const tbody = document.getElementById('admin-tbody');
     const myId = (user[COL.id] || '').toString(); 
 
+    // Filter the cache based on the dropdown selection
     const visible = adminCache.filter(r => f === 'ALL' || (r[COL.div] || 'Other') === f);
 
     if (visible.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px;">No pending approvals found.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px;">No pending approvals found for this selection.</td></tr>`;
         return;
     }
 
@@ -2905,50 +2906,43 @@ function refreshGlobalAdminRating() {
         }
 
         async function approveSingle(id) { if (confirm("Approve?")) { await db.from('active_list').update({ [COL.stat]: 'Approved' }).eq(COL.id, id); adminCache = adminCache.filter(x => x[COL.id] != id); filterAdminTable(); } }
-      async function approveBulk() {
+     async function approveBulk() {
+    const f = document.getElementById('div-filter').value;
     const myId = (user[COL.id] || '').toString();
-    // Filter out the current user's ID from the bulk list
-    const idsToApprove = adminCache
+
+    // 1. Identify which records are currently visible based on the UI filter
+    const visibleRecords = adminCache.filter(r => f === 'ALL' || (r[COL.div] || 'Other') === f);
+
+    // 2. Filter out YOUR record from the bulk action for security
+    const idsToApprove = visibleRecords
         .filter(r => r[COL.id].toString() !== myId)
         .map(r => r[COL.id]);
 
     if (idsToApprove.length === 0) {
-        showToast("No other records available to approve.", "info");
+        showToast("No eligible records to approve in this view.", "info");
         return;
     }
 
-    showConfirm("Bulk Approve", `Approve ${idsToApprove.length} scorecards?`, "Approve All", "primary", async () => {
+    const scopeText = f === 'ALL' ? "ALL divisions" : `the ${f} division`;
+
+    showConfirm("Bulk Approve", `Approve ${idsToApprove.length} scorecards for ${scopeText}?`, "Approve Visible", "primary", async () => {
+        showSaving();
+        
         const { error } = await db.from('active_list')
             .update({ [COL.stat]: 'Approved' })
             .in(COL.id, idsToApprove);
         
-        if (error) showToast(error.message, 'error');
-        else {
-            showToast(`Approved ${idsToApprove.length} records.`, 'success');
-            loadAdminApprovals();
+        if (error) {
+            showToast("Bulk error: " + error.message, 'error');
+        } else {
+            showToast(`Successfully approved ${idsToApprove.length} scorecards.`, 'success');
+            // Refresh data and UI
+            allCompanyData = await fetchAllData(); 
+            loadAdminApprovals(); 
         }
+        showSaved();
     });
 }
-
-        // --- RECURSIVE ORG FETCH ---
-        function getDownstream(rootId, allData) {
-            let subordinates = [];
-            let queue = [rootId.toString().toLowerCase()];
-            let visited = new Set();
-            while (queue.length > 0) {
-                let currentId = queue.shift();
-                if (visited.has(currentId)) continue;
-                visited.add(currentId);
-
-                let direct = allData.filter(u => {
-                    const rawMgr = (u[COL.mgr] || "").toString().toLowerCase();
-                    return rawMgr.includes(currentId);
-                });
-                direct.forEach(d => { subordinates.push(d); queue.push(d[COL.id].toString().toLowerCase()); });
-            }
-            return subordinates;
-        }
-
         // --- 7. REPORTS ---
         // --- 7. REPORTS (UPDATED FOR REAL-TIME AUTO-CALCULATION) ---
 async function loadReports() {
@@ -4361,6 +4355,7 @@ async function submitFinal() {
     </style>
 </body>
 </html>
+
 
 
 
