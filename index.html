@@ -6,7 +6,7 @@
     <meta charset="UTF-8">
        
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Zain PMS - Enterprise Suite</title>
+        <title>Zain - Enterprise Suite</title>
        
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
@@ -1424,7 +1424,7 @@
 
     <div id="loading-overlay">
             <div class="spinner"></div>
-            <div style="font-weight:700; color:#592C82; font-size:1rem; letter-spacing:0.5px;">Initializing Zain PMS...
+            <div style="font-weight:700; color:#592C82; font-size:1rem; letter-spacing:0.5px;">Initializing Zain Performance Management...
         </div>
     </div>
 
@@ -1487,7 +1487,7 @@
     <div id="login-screen" class="hidden">
         <div id="view-id" class="login-card">
             <div class="login-logo"><i class="fa-solid fa-rocket"></i></div>
-            <h1 style="color:var(--text-main); margin:0 0 8px 0; font-size:1.8rem; font-weight:800;">Zain PMS</h1>
+            <h1 style="color:var(--text-main); margin:0 0 8px 0; font-size:1.8rem; font-weight:800;">Zain</h1>
             <p style="color:var(--text-muted); margin-bottom:32px; font-weight:500;">Enterprise Performance Management
             </p>
 
@@ -3391,81 +3391,82 @@ async function loadEval(tid, isSearchMode = false) {
         let editingGoalIndex = null;
 
         function renderGoals(edit) {
-            const stat = targetUser[COL.stat] || 'Draft';
-            const myId = (user[COL.id] || '').toString();
-            const targetId = (targetUser[COL.id] || '').toString();
-            const viewingSelf = (myId === targetId);
-            const uRole = getRole(user);
+    const stat = targetUser[COL.stat] || 'Draft';
+    const myId = (user[COL.id] || '').toString();
+    const targetId = (targetUser[COL.id] || '').toString();
+    const viewingSelf = (myId === targetId);
+    const uRole = getRole(user);
+    const tHeaders = ['IDLE', 'STAGNANT', 'WALKER', 'RUNNER (Target)', 'FLYER', 'ASTRONAUT'];
 
-            // Targets Headers
-            const tHeaders = ['IDLE', 'STAGNANT', 'WALKER', 'RUNNER (Target)', 'FLYER', 'ASTRONAUT'];
+    document.getElementById('goal-list').innerHTML = targetUser[COL.goals].map((g, i) => {
+        let ratingDisplay = `<span class="rating-badge pending"><i class="fa-solid fa-lock"></i> &nbsp; Pending HR</span>`;
+        let commentHtml = '';
 
-            document.getElementById('goal-list').innerHTML = targetUser[COL.goals].map((g, i) => {
-                let ratingDisplay = `<span class="rating-badge pending"><i class="fa-solid fa-lock"></i> &nbsp; Pending HR</span>`;
+        // Case A: Manager is currently rating/reviewing
+        if (isDirectSupervisor && edit) {
+            ratingDisplay = `
+                <select class="rating-select" onchange="updG(${i},'rating',this.value)" style="padding:8px; border-radius:8px; border:1px solid var(--primary); font-weight:700;">
+                    <option value="0">Rate Goal...</option>
+                    ${[1, 2, 3, 4, 5, 6].map(n => `<option value="${n}" ${g.rating == n ? 'selected' : ''}>${n} - ${ratingLabels[n]}</option>`).join('')}
+                </select>`;
+            
+            commentHtml = `
+                <div style="margin-top:15px; background:#f0f9ff; padding:15px; border-radius:10px; border:1px solid #bae6fd;">
+                    <label style="font-size:0.7rem; font-weight:800; color:#0369a1; display:block; margin-bottom:5px;">MANAGER FEEDBACK</label>
+                    <textarea placeholder="Add coaching notes or performance feedback..." 
+                        style="width:100%; border:1px solid #7dd3fc; border-radius:8px; padding:10px; font-family:inherit; font-size:0.9rem; resize:vertical;"
+                        onchange="updG(${i}, 'comment', this.value)">${g.comment || ''}</textarea>
+                </div>`;
+        } 
+        // Case B: Approved Scorecard (Visible to Employee & Manager)
+        else if (stat === 'Approved') {
+            ratingDisplay = `<span class="badge-rating lvl-${g.rating}">${g.rating} - ${ratingLabels[g.rating]}</span>`;
+            if (g.comment) {
+                commentHtml = `
+                    <div style="margin-top:15px; background:var(--primary-light); padding:15px; border-radius:10px; border-left:4px solid var(--primary);">
+                        <label style="font-size:0.7rem; font-weight:800; color:var(--primary); display:block; margin-bottom:5px;"><i class="fa-solid fa-comment-dots"></i> MANAGER FEEDBACK</label>
+                        <div style="font-size:0.9rem; color:var(--text-main); font-style:italic;">"${g.comment}"</div>
+                    </div>`;
+            }
+        }
+        // Case C: Submitted to HR (Hidden from Employee)
+        else if (!viewingSelf && (isManager || ['Admin', 'Master'].includes(uRole))) {
+             ratingDisplay = `<span class="badge-rating lvl-${g.rating}">${g.rating} - ${ratingLabels[g.rating]}</span>`;
+             if (g.comment) {
+                 commentHtml = `<div style="margin-top:10px; font-size:0.85rem; color:var(--text-muted);"><strong>Draft Comment:</strong> ${g.comment}</div>`;
+             }
+        }
 
-                if (isDirectSupervisor && edit) {
-                    ratingDisplay = `<select class="rating-select" onchange="updG(${i},'rating',this.value)">
-                        <option value="0">Rate Goal...</option>
-                        ${[1, 2, 3, 4, 5, 6].map(n => `<option value="${n}" ${g.rating == n ? 'selected' : ''}>${n} - ${ratingLabels[n]}</option>`).join('')}
-                    </select>`;
-                }
-                else if (!viewingSelf && (isManager || ['Admin', 'Master'].includes(uRole))) {
-                    ratingDisplay = `<span class="rating-badge val">${g.rating ? g.rating + ' - ' + ratingLabels[g.rating] : 'Not Rated'}</span>`;
-                }
-                else if (viewingSelf && stat === 'Approved') {
-                    ratingDisplay = `<span class="rating-badge val">${g.rating ? g.rating + ' - ' + ratingLabels[g.rating] : 'Not Rated'}</span>`;
-                }
-
-               return `
-<div class="pro-goal-card animate-in" style="animation-delay: ${i * 0.1}s">
-    <div class="pro-goal-header">
-        <div style="flex:1;">
-            <div style="font-size:1.1rem; font-weight:700; color:var(--text-main); padding:8px 0;">${g.title}</div>
-        </div>
-        <div class="pro-goal-meta">
-            ${g.unit ? `
-            <div class="pro-unit-badge">
-                <i class="fa-solid fa-scale-balanced" style="font-size: 0.7rem; opacity: 0.7;"></i>
-                ${g.unit}
-            </div>` : ''}
-
-            <div class="pro-weight-badge">
-                Weight: <span style="font-weight:700; color:var(--primary); margin-left:4px;">${(g.weight * 100).toFixed(0)}%</span>
+        return `
+        <div class="pro-goal-card animate-in" style="animation-delay: ${i * 0.1}s">
+            <div class="pro-goal-header">
+                <div style="flex:1;">
+                    <div style="font-size:1.1rem; font-weight:700; color:var(--text-main);">${g.title}</div>
+                </div>
+                <div class="pro-goal-meta">
+                    <div class="pro-weight-badge">Weight: <strong>${(g.weight * 100).toFixed(0)}%</strong></div>
+                    ${edit ? `<button class="btn btn-outline" style="padding:6px 12px;" onclick="openGoalModal(${i})"><i class="fa-solid fa-pen"></i></button>` : ''}
+                </div>
             </div>
             
-            ${edit ? `
-            <button class="btn btn-outline" style="padding:6px 12px;" onclick="openGoalModal(${i})"><i class="fa-solid fa-pen"></i> Edit</button>
-            <button class="btn btn-outline" style="color:var(--danger); border-color:#fee2e2; padding:6px 10px;" onclick="delG(${i})"><i class="fa-solid fa-trash-can"></i></button>
-            ` : ''}
-        </div>
-    </div>
-                   
-                    <div style="margin-bottom:20px;">
-                         <div class="pro-goal-desc" style="background:#f8fafc; border:none;">${g.desc || 'No description provided.'}</div>
-                    </div>
+            <div class="pro-goal-desc" style="background:#f8fafc; margin:15px 0;">${g.desc || 'No description.'}</div>
 
-                    <div class="pro-targets-container">
-                        ${tHeaders.map((h, ti) => {
-                    const tVal = (g.targets && g.targets[ti]) ? g.targets[ti] : '-';
-                    const isTarget = (ti === 3);
-                    return `
-                             <div class="pro-target-item ${isTarget ? 'is-target' : ''}">
-                                <div class="pro-target-header">${h}</div>
-                                <div class="pro-target-val">
-                                    <div style="padding:12px 4px; text-align:center; font-size:0.9rem; font-weight:600; color:var(--text-main);">${tVal}</div>
-                                </div>
-                             </div>
-                             `;
-                }).join('')}
-                    </div>
+            <div class="pro-targets-container">
+                ${tHeaders.map((h, ti) => `
+                    <div class="pro-target-item ${ti === 3 ? 'is-target' : ''}">
+                        <div class="pro-target-header">${h}</div>
+                        <div style="padding:10px; text-align:center; font-size:0.85rem;">${g.targets[ti] || '-'}</div>
+                    </div>`).join('')}
+            </div>
 
-                    <div class="pro-goal-footer">
-                        <span class="rating-label" style="font-size:0.75rem; font-weight:700; color:var(--text-muted);">ACHIEVED RATING</span>
-                        ${ratingDisplay}
-                    </div>
-                </div>`;
-            }).join('');
-        }
+            <div style="margin-top:20px; display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:0.75rem; font-weight:700; color:var(--text-muted);">ACHIEVEMENT</span>
+                ${ratingDisplay}
+            </div>
+            ${commentHtml}
+        </div>`;
+    }).join('');
+}
 
         // --- GOAL MODAL & LOGIC ---
         function openGoalModal(index = null) {
@@ -3529,6 +3530,7 @@ async function loadEval(tid, isSearchMode = false) {
                 weight: weight / 100,
                 unit: unit,
                 desc: desc,
+		comment: "",
                 rating: 0,
                 targets: targets
             };
@@ -3549,10 +3551,24 @@ async function loadEval(tid, isSearchMode = false) {
             autoSave();
         }
 
-        function updG(i, f, v) { if (f === 'rating') v = parseInt(v); targetUser[COL.goals][i][f] = v; calc(); autoSave(); }
+       function updG(i, f, v) { 
+    // 1. Convert to number if the field is the rating
+    if (f === 'rating') v = parseInt(v); 
+
+    // 2. Update the data in the array
+    targetUser[COL.goals][i][f] = v; 
+
+    // 3. ONLY run calc if the rating changed (Efficiency improvement)
+    // Comments don't affect the final score, so no need to refresh charts/headers
+    if (f === 'rating') calc(); 
+
+    // 4. Save to Supabase
+    autoSave(); 
+}
         // updT is no longer used directly by inputs, but kept for legacy or potential direct internal usage
         function updT(gi, ti, v) { if (!targetUser[COL.goals][gi].targets) targetUser[COL.goals][gi].targets = Array(6).fill(''); targetUser[COL.goals][gi].targets[ti] = v; autoSave(); }
         function addG() { openGoalModal(); }
+
         async function delG(i) { if (confirm("Delete goal?")) { targetUser[COL.goals].splice(i, 1); renderGoals(true); calc(); autoSave(); } }
 
 function calc() {
@@ -4142,3 +4158,4 @@ function calc() {
     </style>
 </body>
 </html>
+
