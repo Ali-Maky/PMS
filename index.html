@@ -2849,14 +2849,16 @@ function refreshGlobalAdminRating() {
     const tbody = document.getElementById('admin-tbody');
     const myId = (user[COL.id] || '').toString(); 
 
+    // Filter results based on the dropdown (Division/Company)
     const visible = adminCache.filter(r => f === 'ALL' || (r[COL.div] || 'Other') === f);
 
     if (visible.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:40px; color:var(--text-muted);">No records found for this selection.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px;">No pending approvals found.</td></tr>`;
         return;
     }
 
     tbody.innerHTML = visible.map(r => {
+        // We still mark which one is yours with the 'ME' badge for clarity
         const isMe = (r[COL.id].toString() === myId);
         
         return `
@@ -2868,16 +2870,13 @@ function refreshGlobalAdminRating() {
             <td>${r[COL.job] || '-'}</td>
             <td>${r[COL.mgr] || '-'}</td>
             <td>
-                <div style="display:flex; gap:8px; justify-content:flex-end; align-items:center;">
-                    <button class="btn btn-outline" style="padding:6px 12px; font-size:0.75rem;" onclick="loadEval('${r[COL.id]}')">View</button>
+                <div style="display:flex; gap:6px; justify-content:flex-end; align-items:center;">
+                    <button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem;" onclick="loadEval('${r[COL.id]}')">View</button>
                     
-                    <button class="btn btn-outline" style="padding:6px 12px; font-size:0.75rem; color:var(--danger); border-color:#fee2e2;" 
+                    <button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem; color:var(--danger); border-color:#fee2e2;" 
                             onclick="rejectToManager('${r[COL.id]}')">Reject</button>
 
-                    ${isMe ? 
-                        `<span style="font-size:0.7rem; color:var(--text-muted); font-weight:700; padding:0 10px; font-style:italic;">Peer Approval Required</span>` : 
-                        `<button class="btn btn-primary" style="padding:6px 12px; font-size:0.75rem;" onclick="approveSingle('${r[COL.id]}')">Approve</button>`
-                    }
+                    <button class="btn btn-primary" style="padding:6px 10px; font-size:0.75rem;" onclick="approveSingle('${r[COL.id]}')">Approve</button>
                 </div>
             </td>
         </tr>`;
@@ -2936,24 +2935,21 @@ function refreshGlobalAdminRating() {
 }
      async function approveBulk() {
     const f = document.getElementById('div-filter').value;
-    const myId = (user[COL.id] || '').toString();
 
-    // 1. Get visible records based on current filter
+    // 1. Get all visible records currently on the screen
     const visibleRecords = adminCache.filter(r => f === 'ALL' || (r[COL.div] || 'Other') === f);
 
-    // 2. Filter out the logged-in admin's own ID
-    const idsToApprove = visibleRecords
-        .filter(r => r[COL.id].toString() !== myId)
-        .map(r => r[COL.id]);
+    // 2. AMENDED: Include EVERY ID in the visible list (No longer skipping your own ID)
+    const idsToApprove = visibleRecords.map(r => r[COL.id]);
 
     if (idsToApprove.length === 0) {
-        showToast("No eligible records available to approve in this view.", "info");
+        showToast("No records found in this view.", "info");
         return;
     }
 
-    const scope = f === 'ALL' ? "ALL pending" : `the ${f} division`;
+    const msg = f === 'ALL' ? "ALL pending scorecards" : `all scorecards in the ${f} division`;
 
-    showConfirm("Bulk Approve", `Approve ${idsToApprove.length} scorecards for ${scope}?`, "Approve Visible", "primary", async () => {
+    showConfirm("Bulk Approval", `Approve ${idsToApprove.length} records for ${msg}?`, "Confirm Bulk Approve", "primary", async () => {
         showSaving();
         
         const { error } = await db.from('active_list')
@@ -2964,7 +2960,8 @@ function refreshGlobalAdminRating() {
             showToast("Bulk error: " + error.message, 'error');
         } else {
             showToast(`Successfully approved ${idsToApprove.length} records.`, 'success');
-            // Remove approved items from local cache and refresh view
+            
+            // Refresh list
             adminCache = adminCache.filter(r => !idsToApprove.includes(r[COL.id]));
             filterAdminTable();
         }
@@ -4383,6 +4380,7 @@ async function submitFinal() {
     </style>
 </body>
 </html>
+
 
 
 
