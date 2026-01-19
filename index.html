@@ -1540,7 +1540,7 @@
 
     <div id="app-container">
             <aside class="sidebar">
-                    <div class="brand"><i class="fa-solid fa-bolt"></i> Zain </div>
+                    <div class="brand"><i class="fa-solid fa-bolt"></i> Performance Management System </div>
                     <nav id="nav-menu" style="flex:1; display:flex; flex-direction:column;"></nav>
                     <div class="user-panel">
                             <div style="font-weight:700; font-size:0.95rem; color:var(--text-main);" id="disp-user">User
@@ -3312,7 +3312,9 @@ async function loadEval(tid, isSearchMode = false) {
         const myName = (user[COL.name] || "").toString().toLowerCase();
 
         isDirectSupervisor = (mgrStr.includes(myId.toLowerCase()) || (myName.length > 3 && mgrStr.includes(myName)));
-        isManager = isDirectSupervisor || (uRole === 'Admin' && !viewingSelf) || (uRole === 'Master' && !viewingSelf);
+        
+        // AMENDED: Admin only acts as a Manager if NOT looking at themselves
+        isManager = !viewingSelf && (isDirectSupervisor || (uRole === 'Admin' || uRole === 'Master'));
 
         // Process weighting configuration
         const w = getW(data[COL.lvl], data[COL.job]);
@@ -3325,16 +3327,17 @@ async function loadEval(tid, isSearchMode = false) {
 
         const stat = data[COL.stat] || 'Draft';
 
-        // Permissions logic
+        // Permissions logic: If viewing self, follow normal employee rules regardless of role
         let canEdit = false;
         if (viewingSelf) {
             canEdit = (stat === 'Draft' || stat === 'Returned');
         } else if (isDirectSupervisor) {
             canEdit = (stat === 'Submitted to Manager');
         }
-        if ((uRole === 'Admin' || uRole === 'Master') && !viewingSelf) {
-            canEdit = !(isDirectSupervisor && stat === 'Submitted to HR');
-        }
+        
+        // AMENDED: Final Approval logic only active when Admin is looking at SOMEONE ELSE'S submitted card
+        const isHRReady = (uRole === 'Admin' || uRole === 'Master') && stat === 'Submitted to HR' && !viewingSelf;
+
         if (isSearchMode) canEdit = false;
 
         // MANAGER DATA EXTRACTION
@@ -3491,7 +3494,7 @@ async function loadEval(tid, isSearchMode = false) {
             }
         }
 
-        // FOOTER ACTION BUTTONS
+        // AMENDED FOOTER LOGIC
         h += `<div style="margin-top:48px; padding-top:32px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:16px;">`;
 
         if (canEdit) {
@@ -3504,7 +3507,8 @@ async function loadEval(tid, isSearchMode = false) {
             h += `<button class="btn btn-outline" style="color:var(--danger); border-color:#fee2e2; background:#fff1f2;" onclick="rejectCard()"><i class="fa-solid fa-ban"></i> &nbsp; Reject / Request Changes</button>`;
         }
 
-        if ((uRole === 'Admin' || uRole === 'Master') && stat === 'Submitted to HR' && !isDirectSupervisor) {
+        // Final Approve buttons ONLY show if this is NOT the current Admin's own scorecard
+        if (isHRReady) {
             h += `<button class="btn btn-outline" style="color:var(--danger); border-color:#fee2e2; background:#fff1f2;" onclick="rejectToManager('${targetUser[COL.id]}')"><i class="fa-solid fa-rotate-left"></i> &nbsp; Reject to Manager</button>`;
             h += `<button class="btn btn-primary" style="background:var(--success); border:none;" onclick="submitFinal()"><i class="fa-solid fa-check"></i> &nbsp; Final Approve (HR)</button>`;
         }
@@ -3513,8 +3517,6 @@ async function loadEval(tid, isSearchMode = false) {
 
         render(h);
         if (w.i > 0 && !managerBlocked) renderGoals(canEdit);
-        
-        // Execute math calculation for headers
         calc();
 
     } catch (err) {
@@ -3810,7 +3812,7 @@ function calc() {
         function showSaved() { document.getElementById('save-dot').className = 'save-dot saved'; document.getElementById('save-text').innerText = "All changes saved"; setTimeout(() => document.getElementById('save-status').classList.remove('show'), 2000); }
         async function saveDraft() { autoSave(); }
 
- async function submitFinal() {
+async function submitFinal() {
     // --- 1. VALIDATION: Check for 0% Weight Goals ---
     const goals = targetUser[COL.goals] || [];
     let hasZeroWeight = false;
@@ -3841,27 +3843,32 @@ function calc() {
         return;
     }
 
-    // --- 3. PROCEED TO SUBMISSION ---
+    // --- 3. AMENDED TRANSITION LOGIC ---
     const myId = (user[COL.id] || '').toString();
     const targetId = (targetUser[COL.id] || '').toString();
     const viewingSelf = (myId === targetId);
     const uRole = getRole(user);
+    const stat = targetUser[COL.stat] || 'Draft';
 
     let confirmTitle = "Confirm Submission";
     let confirmMsg = "Are you sure you want to proceed?";
     let newStatus = "";
 
     if (viewingSelf) {
+        // Even Admins move to "Submitted to Manager" for their own card
         confirmMsg = "Submit to Manager? You won't be able to edit your goals anymore.";
         newStatus = "Submitted to Manager";
-    } else if (isDirectSupervisor) {
+    } else if (isDirectSupervisor && stat === 'Submitted to Manager') {
         confirmMsg = "Approve & Submit to HR? Feedback and ratings will be finalized.";
         newStatus = "Submitted to HR";
-    } else if (uRole === 'Admin' || uRole === 'Master') {
+    } else if ((uRole === 'Admin' || uRole === 'Master') && stat === 'Submitted to HR') {
+        // This stage can only be reached via the Admin Panel by a different Admin
         confirmTitle = "Final Approval";
         confirmMsg = "Perform Final Approval? This will archive the record and make results visible to the employee.";
         newStatus = "Approved";
     }
+
+    if (!newStatus) return;
 
     showConfirm(confirmTitle, confirmMsg, "Proceed", "primary", async () => {
         const btn = document.getElementById('btn-submit-final');
@@ -4314,6 +4321,7 @@ function calc() {
     </style>
 </body>
 </html>
+
 
 
 
