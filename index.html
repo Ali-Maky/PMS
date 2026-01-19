@@ -2836,10 +2836,10 @@ function refreshGlobalAdminRating() {
     document.getElementById('admin-content').innerHTML = h;
     filterAdminTable();
 }
-       function filterAdminTable() {
+      function filterAdminTable() {
     const f = document.getElementById('div-filter').value;
     const tbody = document.getElementById('admin-tbody');
-    const myId = (user[COL.id] || '').toString(); // Current logged-in user
+    const myId = (user[COL.id] || '').toString(); 
 
     const visible = adminCache.filter(r => f === 'ALL' || (r[COL.div] || 'Other') === f);
 
@@ -2858,13 +2858,15 @@ function refreshGlobalAdminRating() {
             <td>${r[COL.job] || '-'}</td>
             <td>${r[COL.mgr] || '-'}</td>
             <td>
-                <div style="display:flex; gap:6px; justify-content:flex-end;">
+                <div style="display:flex; gap:6px; justify-content:flex-end; align-items:center;">
                     <button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem;" onclick="loadEval('${r[COL.id]}')">View</button>
                     
+                    <button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem; color:var(--danger); border-color:#fee2e2;" 
+                            onclick="rejectToManager('${r[COL.id]}')">Reject</button>
+
                     ${isMe ? 
-                        `<span style="font-size:0.7rem; color:var(--text-muted); padding:6px; font-style:italic;">Peer Approval Required</span>` : 
-                        `<button class="btn btn-outline" style="padding:6px 10px; font-size:0.75rem; color:var(--danger); border-color:#fee2e2;" onclick="rejectToManager('${r[COL.id]}')">Reject</button>
-                         <button class="btn btn-primary" style="padding:6px 10px; font-size:0.75rem;" onclick="approveSingle('${r[COL.id]}')">Approve</button>`
+                        `<span style="font-size:0.7rem; color:var(--text-muted); font-weight:700; padding:0 10px; font-style:italic;">Peer Approval Required</span>` : 
+                        `<button class="btn btn-primary" style="padding:6px 10px; font-size:0.75rem;" onclick="approveSingle('${r[COL.id]}')">Approve</button>`
                     }
                 </div>
             </td>
@@ -4359,6 +4361,7 @@ async function submitFinal() {
     </style>
 </body>
 </html>
+
 
 
 
