@@ -2351,10 +2351,15 @@ function refreshGlobalAdminRating() {
     }
 }
 
-        async function saveDraftToDB() {
-            await db.from('company_settings').upsert({ id: 'shared_goals_draft', data: masterData });
-            if (!hasDraft) { hasDraft = true; loadAdminSharedGoals(); }
-        }
+      async function saveDraftToDB() {
+    // 1. Send data to database
+    await db.from('company_settings').upsert({ id: 'shared_goals_draft', data: masterData });
+    
+    // 2. Update flag, but DO NOT reload the data (loadAdminSharedGoals)
+    if (!hasDraft) { 
+        hasDraft = true; 
+    }
+}
 
         async function discardDraft() {
             showConfirm("Discard Draft", "Discard draft and reload live data?", "Discard", "danger", async () => {
@@ -2369,10 +2374,10 @@ function refreshGlobalAdminRating() {
             renderMasterGoals();
         }
 
-     function renderMasterGoals() {
+    function renderMasterGoals() {
     const container = document.getElementById('master-goals-list');
     
-    // Define your companies explicitly
+    // Helper to get companies list
     const companies = ["Zain Iraq", "Horizon", "Next Generation"];
 
     if (!masterData.goals || masterData.goals.length === 0) {
@@ -2381,16 +2386,15 @@ function refreshGlobalAdminRating() {
     }
 
     const htmlParts = masterData.goals.map((g, i) => {
-        // 1. Get Current Context (Default to 'ALL')
+        // 1. Setup Context Variables
         const context = g.company_context || 'ALL';
-
-        // 2. Filter Data based on Context
+        
+        // 2. Filter available options based on context
         let contextData = allCompanyData;
         if (context !== 'ALL') {
             contextData = allCompanyData.filter(u => getCompany(u[COL.id]) === context);
         }
 
-        // 3. Get Unique Divisions & Chiefs for this Context
         const availDivs = [...new Set(contextData.map(u => (u[COL.div] || "").trim()).filter(Boolean))].sort();
         
         const availChiefs = contextData.filter(u => {
@@ -2399,16 +2403,14 @@ function refreshGlobalAdminRating() {
             return l === 'L1' || j === 'CEO' || (j.startsWith('CHIEF ') && j.endsWith(' OFFICER'));
         }).sort((a, b) => a[COL.name].localeCompare(b[COL.name]));
 
-        // 4. Define the "Assign All" option based on context
         const allOptionText = context === 'ALL' ? "Assign to ALL Global Employees" : `Assign to ALL ${context} Employees`;
         const allOptionVal = context === 'ALL' ? "GLOBAL_ALL" : `COMP_${context}`;
 
-        // 5. Generate Assignments List HTML
+        // 3. Generate Sub-HTML for Assignments
         const assignmentsHtml = (g.assignments || []).map((assign, ai) => {
             let dispName = assign.target;
             let styleClass = "";
 
-            // Style based on Assignment Type
             if (assign.target === 'GLOBAL_ALL') { 
                 dispName = "🌍 GLOBAL (All Employees)"; 
                 styleClass="background:#ecfdf5; border-color:#6ee7b7; color:#064e3b;"; 
@@ -2440,19 +2442,22 @@ function refreshGlobalAdminRating() {
             </div>`;
         }).join('');
 
-        // 6. Generate Targets Inputs HTML
+        // 4. Generate Sub-HTML for Targets
         const targetsHtml = g.targets.map((t, ti) => {
             let label = 'L' + (ti + 1);
             if (ti === 3) label = 'RUNNER';
             if (ti === 5) label = 'ASTRO';
+            const highlight = ti === 3 ? 'active-highlight' : '';
+            
             return `
             <div style="position:relative;">
                 <div style="font-size:0.6rem; font-weight:800; color:var(--text-light); margin-bottom:2px; text-align:center;">${label}</div>
-                <input class="target-input ${ti === 3 ? 'active-highlight' : ''}" value="${t}" placeholder="Target..." 
+                <input class="target-input ${highlight}" value="${t}" placeholder="Target..." 
                     onchange="masterData.goals[${i}].targets[${ti}]=this.value; saveDraftToDB();">
             </div>`;
         }).join('');
 
+        // 5. Return Main Card HTML
         return `
         <div class="card" style="border-left: 5px solid var(--primary); background: #fff; overflow:visible; margin-bottom:20px;">
             <div style="display:grid; grid-template-columns: 2fr 1fr 1fr; gap:15px; margin-bottom:15px;">
@@ -2461,7 +2466,7 @@ function refreshGlobalAdminRating() {
                     placeholder="Goal Title" style="margin:0;">
                 
                 <select class="login-input" style="margin:0; font-weight:700; color:var(--text-main);"
-                    onchange="masterData.goals[${i}].company_context=this.value; saveDraftToDB(); renderMasterGoals();">
+                    onchange="masterData.goals[${i}].company_context=this.value; renderMasterGoals(); saveDraftToDB();">
                     <option value="ALL" ${context === 'ALL' ? 'selected' : ''}>🌍 All Companies</option>
                     ${companies.map(comp => `<option value="${comp}" ${context === comp ? 'selected' : ''}>🏢 ${comp}</option>`).join('')}
                 </select>
@@ -4484,6 +4489,7 @@ async function submitFinal() {
     </style>
 </body>
 </html>
+
 
 
 
