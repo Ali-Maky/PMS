@@ -3583,12 +3583,33 @@ async function loadEval(tid, isSearchMode = false) {
                 </div>`;
         } else {
             // SHARED GOALS (TARGETED & WEIGHTED)
+           // SHARED GOALS SECTION
             if (w.s > 0) {
                 const userDiv = (data[COL.div] || "").trim();
                 const userId = (data[COL.id] || "").trim();
+                const userComp = getCompany(userId); // Determine Company (e.g. "Zain Iraq")
+
+                // UPDATED LOGIC: Check for Global, Company, Division, OR Personal assignments
                 const relevantShared = (masterData.goals || []).map(g => {
-                    const myAssign = (g.assignments || []).find(a => a.target === userDiv || a.target === userId);
-                    return myAssign ? { ...g, myWeight: myAssign.weight } : null;
+                    // We sum up weights if multiple assignments match (e.g. Company + Division)
+                    // or just take the first match. Let's sum them to be consistent with calc().
+                    let totalWeight = 0;
+                    let isAssigned = false;
+
+                    (g.assignments || []).forEach(a => {
+                        if (a.target === 'GLOBAL_ALL' || 
+                            a.target === `COMP_${userComp}` || 
+                            a.target === `DIV_${userDiv}` || // Note: Added DIV_ prefix support if used
+                            a.target === userDiv ||          // Legacy support for plain Division names
+                            a.target === `ID_${userId}` ||   // Note: Added ID_ prefix support
+                            a.target === userId)             // Legacy support for plain IDs
+                        {
+                            totalWeight += Number(a.weight);
+                            isAssigned = true;
+                        }
+                    });
+
+                    return isAssigned ? { ...g, myWeight: totalWeight } : null;
                 }).filter(Boolean);
 
                 h += `
@@ -3614,7 +3635,7 @@ async function loadEval(tid, isSearchMode = false) {
                                     }).join('')}
                                 </div>
                             </div>`).join('')}
-                        ${relevantShared.length === 0 ? '<div style="color:var(--text-muted); font-style:italic; padding:20px;">No shared goals assigned to this division.</div>' : ''}
+                        ${relevantShared.length === 0 ? '<div style="color:var(--text-muted); font-style:italic; padding:20px;">No shared goals assigned to this division or company.</div>' : ''}
                     </div>
                 </div>`;
             }
@@ -4489,6 +4510,7 @@ async function submitFinal() {
     </style>
 </body>
 </html>
+
 
 
 
